@@ -453,13 +453,16 @@ async function renderCalendar() {
   const today = new Date();
   const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
   
-  const sumMap = new Map();
-  (cachedOrders || []).forEach(o => {
-    if (o && o.executionDate && o.price) {
-      const ds = o.executionDate;
-      sumMap.set(ds, (sumMap.get(ds) || 0) + o.price);
+ const sumMap = new Map();
+(cachedOrders || []).forEach(o => {
+  if (o && o.executionDate && o.price) {
+    const ds = o.executionDate;
+    const priceNum = parseFloat(o.price);
+    if (!isNaN(priceNum)) {
+      sumMap.set(ds, (sumMap.get(ds) || 0) + priceNum);
     }
-  });
+  }
+});
 
   let day = 1;
   for (let i = 0; i < totalCells; i++) {
