@@ -1056,20 +1056,48 @@ function renderFinanceTab(container) {
       return;
     }
     data.transactions.sort((a,b) => new Date(b.date) - new Date(a.date));
-    let html = '<div class="card"><table style="width:100%; border-collapse: collapse;">';
-    html += '<thead><tr><th>Дата</th><th>Тип</th><th>Категория</th><th>Сумма</th><th>Комментарий</th></tr></thead><tbody>';
-    for (const t of data.transactions) {
-      let displayDate = new Date(t.date).toLocaleDateString();
-      html += `<tr>
-        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${escapeHtml(displayDate)}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${escapeHtml(t.type)}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${escapeHtml(t.category)}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align:right;">${t.amount} BYN</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${escapeHtml(t.comment || '')}</td>
-      </tr>`;
+    // Внутри renderFinanceTab, в функции loadData, после получения данных:
+// Формируем таблицу
+let html = '<div class="card"><table style="width:100%; border-collapse: collapse;">';
+html += '<thead><tr><th>Дата</th><th>Тип</th><th>Категория</th><th>Сумма</th><th>Комментарий</th></td></thead><tbody>';
+
+for (const t of data.transactions) {
+  // --- Функция парсинга даты в формате "DD.MM.YYYY HH:MM:SS" ---
+  let displayDate = '';
+  if (t.date && typeof t.date === 'string') {
+    const parts = t.date.split(' ');
+    const dateParts = parts[0].split('.');
+    const timeParts = parts[1] ? parts[1].split(':') : [0, 0, 0];
+    if (dateParts.length === 3) {
+      const d = new Date(
+        parseInt(dateParts[2]),          // год
+        parseInt(dateParts[1]) - 1,      // месяц (0-11)
+        parseInt(dateParts[0]),          // день
+        parseInt(timeParts[0]),          // час
+        parseInt(timeParts[1]),          // минута
+        parseInt(timeParts[2] || 0)      // секунда
+      );
+      displayDate = d.toLocaleDateString();
+    } else {
+      displayDate = t.date; // fallback
     }
-    html += '</tbody></table></div>';
-    listDiv.innerHTML = html;
+  } else if (t.date instanceof Date) {
+    displayDate = t.date.toLocaleDateString();
+  } else {
+    displayDate = t.date;
+  }
+  // --- конец парсинга ---
+
+  html += `<tr>
+    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${escapeHtml(displayDate)}</td>
+    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${escapeHtml(t.type)}</td>
+    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${escapeHtml(t.category)}</td>
+    <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align:right;">${t.amount} BYN</td>
+    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${escapeHtml(t.comment || '')}</td>
+  </td>`;
+}
+html += '</tbody></table></div>';
+listDiv.innerHTML = html;
   }
 
   document.getElementById('filterBtn').onclick = () => {
