@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<title>CONDY Кондитерский помощник</title>
+<style>
+  .toast {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #333;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 40px;
+    font-size: 0.85rem;
+    z-index: 3000;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+  /* остальные стили (оставлены без изменений, я их не трогаю – они те же, что были) */
+  /* ========== ОСНОВНЫЕ СТИЛИ (компактная версия) ========== */
+  * { box-sizing: border-box; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+  body { background: #f5f7fb; margin: 0; padding: 0 0 60px 0; }
+  .container { max-width: 700px; margin: 0 auto; background: white; border-radius: 24px; padding: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 12px; }
+  h1 { font-size: 1.4rem; font-weight: 600; margin: 0 0 2px 0; color: #1e293b; }
+  label { font-weight: 500; display: block; margin-top: 12px; margin-bottom: 4px; font-size: 0.85rem; color: #0f172a; }
+  select, input, textarea { width: 100%; padding: 8px 12px; font-size: 0.9rem; border: 1px solid #cbd5e1; border-radius: 16px; background: white; }
+  button { background: #f97316; color: white; border: none; padding: 8px 14px; font-size: 0.85rem; font-weight: 500; border-radius: 40px; width: 100%; margin-top: 12px; cursor: pointer; }
+  button.secondary { background: #334155; margin-top: 8px; }
+  .card { background: #f8fafc; border-radius: 16px; padding: 12px; margin-top: 12px; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+  th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid #e2e8f0; }
+  .amount { text-align: right; }
+  .alert, .success { padding: 8px; font-size: 0.8rem; margin-top: 8px; }
+  .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid rgba(0,0,0,0.1); border-radius: 50%; border-top-color: #f97316; animation: spin 0.6s linear infinite; margin-left: 6px; vertical-align: middle; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.8); display: flex; justify-content: center; align-items: center; z-index: 3000; }
+  .loading-overlay .spinner { width: 32px; height: 32px; border-width: 3px; }
+  .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: white; display: flex; justify-content: space-around; padding: 4px 8px; box-shadow: 0 -2px 8px rgba(0,0,0,0.08); border-top: 1px solid #e2e8f0; z-index: 1000; max-width: 700px; margin: 0 auto; border-radius: 20px 20px 0 0; }
+  .nav-item { display: flex; flex-direction: column; align-items: center; background: none; border: none; font-size: 11px; color: #64748b; cursor: pointer; width: 20%; text-align: center; padding: 2px 0; }
+  .nav-item.active { color: #f97316; }
+  .nav-item span:first-child { font-size: 22px; margin-bottom: 2px; }
+  .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; margin: 8px 0; }
+  .calendar-day { cursor: pointer; padding: 6px 2px; background: #f1f5f9; border-radius: 12px; transition: 0.2s; font-size: 0.85rem; line-height: 1.2; min-height: 40px; display: flex; flex-direction: column; justify-content: center; }
+  .calendar-day.today { background: #f97316; color: white; }
+  .calendar-day.selected { background: #3b82f6; color: white; }
+  .calendar-sum { font-size: 0.65rem; font-weight: bold; color: #f97316; margin-top: 2px; height: 18px; line-height: 18px; }
+  .fab { position: fixed; bottom: 70px; right: 16px; width: 48px; height: 48px; background: #f97316; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 3px 10px rgba(0,0,0,0.2); cursor: pointer; z-index: 1001; transition: 0.2s; }
+  .fab:hover { transform: scale(1.05); background: #ea580c; }
+  .fab span { font-size: 26px; color: white; }
+  .order-card-clickable { margin-bottom: 6px; border-radius: 14px; padding: 8px 10px; cursor: pointer; transition: 0.2s; border-left: 3px solid; font-size: 0.85rem; }
+  .order-card-clickable:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+  .order-card-clickable.status-work { background: #fff7ed; border-left-color: #f97316; }
+  .order-card-clickable.status-paid { background: #dcfce7; border-left-color: #22c55e; }
+  .order-card-clickable.status-completed { background: #bbf7d0; border-left-color: #16a34a; }
+  .order-card-clickable.status-canceled { background: #fee2e2; border-left-color: #ef4444; }
+  .status-group { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+  .status-btn { background: #e2e8f0; color: #1e293b; padding: 4px 8px; border-radius: 30px; font-size: 0.75rem; font-weight: 500; border: none; cursor: pointer; flex: 1; text-align: center; margin: 0; }
+  .status-btn.active { background: #f97316; color: white; }
+  .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 2000; }
+  .modal-content { background: white; max-width: 90%; width: 450px; padding: 20px; border-radius: 28px; max-height: 85vh; overflow-y: auto; }
+  .modal-buttons { display: flex; gap: 12px; margin-top: 20px; }
+  .modal-buttons button { flex: 1; margin-top: 0; }
+  .menu-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1500; display: none; }
+  .slide-menu { position: fixed; top: 0; right: -280px; width: 260px; bottom: 60px; background: white; z-index: 1501; transition: right 0.3s ease; padding: 16px; box-shadow: -2px 0 10px rgba(0,0,0,0.1); border-radius: 20px 0 0 20px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+  .slide-menu.open { right: 0; }
+  .slide-menu button { margin-top: 0; padding: 8px 12px; font-size: 0.85rem; }
+  @media (max-width: 600px) { .container { padding: 8px; margin: 6px; border-radius: 18px; } h1 { font-size: 1.2rem; } button { padding: 6px 12px; font-size: 0.8rem; } .calendar-day { padding: 4px 1px; font-size: 0.75rem; } .fab { bottom: 65px; right: 14px; width: 44px; height: 44px; } .fab span { font-size: 22px; } }
+  @media (max-width: 380px) { .calendar-day { font-size: 0.65rem; padding: 3px 1px; } .nav-item span:first-child { font-size: 18px; } .nav-item { font-size: 9px; } }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+// ========== НАСТРОЙКИ API ==========
+const API_BASE = 'https://condy-api.onrender.com'; // ЗАМЕНИТЕ НА ВАШ URL
+
+// ========== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ==========
+let currentUser = null;
+let currentMonth = new Date().getMonth();
+let currentYear = new Date().getFullYear();
+let lastMoreSection = null;
+let selectedDate = null;
+let cachedOrders = [];
+let cachedClients = [];
+
+// ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
+function escapeHtml(str) {
+  if (str === undefined || str === null) return '';
+  str = String(str);
+  return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : m === '<' ? '&lt;' : '&gt;');
+}
+function showSpinner() {
+  let ov = document.getElementById('globalSpinner');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'globalSpinner';
+    ov.className = 'loading-overlay';
+    ov.innerHTML = '<div class="spinner"></div>';
+    document.body.appendChild(ov);
+  }
+  ov.style.display = 'flex';
+}
+function hideSpinner() {
+  const ov = document.getElementById('globalSpinner');
+  if (ov) ov.style.display = 'none';
+}
+function showToast(message, isError = false) {
+  const toast = document.getElementById('toastMsg');
+  toast.textContent = message;
+  toast.style.background = isError ? '#b91c1c' : '#15803d';
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2500);
+}
+async function apiCall(url, options = {}) {
+  const response = await fetch(API_BASE + url, {
+    ...options,
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...options.headers }
+  });
+  let data;
+  const contentType = response.headers.get('content-type');
+  if (contentType && contentType.includes('application/json')) {
+    data = await response.json();
+  } else {
+    data = await response.text();
+  }
+  return { status: response.status, ok: response.ok, data };
+}
+
+// ========== ЗАГРУЗКА ДАННЫХ ==========
+async function fetchAllOrders(force = false) {
+  if (!force && sessionStorage.getItem('cachedOrders')) {
+    cachedOrders = JSON.parse(sessionStorage.getItem('cachedOrders'));
+    return cachedOrders;
+  }
+  showSpinner();
+  try {
+    const result = await apiCall('/api/orders');
+    cachedOrders = result.ok && Array.isArray(result.data) ? result.data : [];
+    sessionStorage.setItem('cachedOrders', JSON.stringify(cachedOrders));
+  } catch(e) { cachedOrders = []; }
+  hideSpinner();
+  return cachedOrders;
+}
+async function fetchClients(force = false) {
+  if (!force && sessionStorage.getItem('cachedClients')) {
+    cachedClients = JSON.parse(sessionStorage.getItem('cachedClients'));
+    return cachedClients;
+  }
+  showSpinner();
+  try {
+    const result = await apiCall('/api/clients');
+    cachedClients = result.ok && Array.isArray(result.data) ? result.data : [];
+    sessionStorage.setItem('cachedClients', JSON.stringify(cachedClients));
+  } catch(e) { cachedClients = []; }
+  hideSpinner();
+  return cachedClients;
+}
+
+// ========== АВТОРИЗАЦИЯ ==========
+async function register(name, email, password) {
+  const result = await apiCall('/api/register', {
+    method: 'POST',
+    body: JSON.stringify({ name, email, password })
+  });
+  if (result.ok) {
+    showToast('Регистрация успешна! Теперь войдите.');
+  } else {
+    showToast(result.data.error || 'Ошибка регистрации', true);
+  }
+}
+async function login(email, password) {
+  showSpinner();
+  const result = await apiCall('/api/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password })
+  });
+  hideSpinner();
+  if (result.ok && result.data.success) {
+    currentUser = { name: result.data.name, role: result.data.role, email: result.data.email };
+    localStorage.setItem('loggedIn', 'true');
+    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    renderMainApp();
+  } else {
+    showToast(result.data.error || 'Ошибка входа', true);
+  }
+}
+async function logout() {
+  await apiCall('/api/logout', { method: 'POST' });
+  localStorage.clear();
+  currentUser = null;
+  cachedOrders = [];
+  cachedClients = [];
+  selectedDate = null;
+  renderLoginPage();
+}
+
+// ========== СТРАНИЦА ВХОДА ==========
+function renderLoginPage() {
+  document.getElementById('app').innerHTML = `
+    <div class="container" style="max-width: 400px; margin-top: 50px;">
+      <h1 style="text-align: center;">🍰 Вход</h1>
+      <label>Email</label><input type="email" id="email" placeholder="user@example.com">
+      <label>Пароль</label><input type="password" id="password" placeholder="Пароль">
+      <button id="loginBtn">Войти</button>
+      <button id="registerBtn" class="secondary">Зарегистрироваться</button>
+      <div id="message"></div>
+    </div>
+  `;
+  document.getElementById('loginBtn').onclick = () => {
+    const email = document.getElementById('email').value;
+    const pwd = document.getElementById('password').value;
+    login(email, pwd);
+  };
+  document.getElementById('registerBtn').onclick = () => {
+    const email = prompt('Введите email');
+    if (!email) return;
+    const name = prompt('Введите имя');
+    if (!name) return;
+    const pwd = prompt('Введите пароль');
+    if (!pwd) return;
+    register(name, email, pwd);
+  };
+}
+
+// ========== ОСНОВНОЕ ПРИЛОЖЕНИЕ ==========
+function renderMainApp() {
+  document.getElementById('app').innerHTML = `
+    <div style="max-width:700px; margin:0 auto;"><div id="mainContent" class="container"></div></div>
+    <div class="bottom-nav">
+      <button class="nav-item" data-tab="orders"><span>📦</span><span>Заказы</span></button>
+      <button class="nav-item" data-tab="calculator"><span>🧮</span><span>Калькулятор</span></button>
+      <button class="nav-item" data-tab="stock"><span>📊</span><span>Склад</span></button>
+      <button class="nav-item" data-tab="finance"><span>💰</span><span>Доходы/Расходы</span></button>
+      <button class="nav-item" data-tab="more"><span>☰</span><span>Ещё</span></button>
+    </div>
+  `;
+  showTab('orders');
+  document.querySelectorAll('.nav-item').forEach(btn => btn.addEventListener('click', () => showTab(btn.getAttribute('data-tab'))));
+}
+function showTab(tabId) {
+  if (document.getElementById('slideMenuOverlay')) { document.getElementById('slideMenuOverlay').style.display = 'none'; }
+  if (document.getElementById('slideMenuPanel')) { document.getElementById('slideMenuPanel').classList.remove('open'); }
+  document.querySelectorAll('.nav-item').forEach(btn => btn.classList.toggle('active', btn.getAttribute('data-tab') === tabId));
+  const container = document.getElementById('mainContent');
+  if (tabId === 'orders') renderOrdersTab(container);
+  else if (tabId === 'calculator') renderCalculatorTab(container);
+  else if (tabId === 'stock') renderStockTab(container);
+  else if (tabId === 'finance') renderFinanceTab(container);
+  else if (tabId === 'more') renderMoreTab(container);
+}
+
+// ========== ЗАКАЗЫ ==========
+function renderOrdersTab(container) {
+  container.innerHTML = `
+    <h1>📦 Заказы</h1>
+    <div style="display:flex; justify-content:space-between;">
+      <button id="prevMonth" class="secondary" style="width:auto;">◀</button>
+      <span id="monthYear" style="font-weight:bold;"></span>
+      <button id="nextMonth" class="secondary" style="width:auto;">▶</button>
+    </div>
+    <div id="calendarGrid" class="calendar-grid"></div>
+    <div id="ordersList"></div>
+  `;
+  document.getElementById('prevMonth').onclick = () => { currentMonth--; if (currentMonth < 0) { currentMonth = 11; currentYear--; } renderCalendar(); };
+  document.getElementById('nextMonth').onclick = () => { currentMonth++; if (currentMonth > 11) { currentMonth = 0; currentYear++; } renderCalendar(); };
+  const fabDiv = document.getElementById('fabContainer');
+  if (fabDiv) {
+    fabDiv.innerHTML = `<div class="fab" id="fabBtn"><span>+</span></div>`;
+    document.getElementById('fabBtn').onclick = () => showOrderForm();
+  } else {
+    const fab = document.createElement('div');
+    fab.id = 'fabBtn';
+    fab.className = 'fab';
+    fab.innerHTML = '<span>+</span>';
+    document.body.appendChild(fab);
+    fab.onclick = () => showOrderForm();
+  }
+  if (!selectedDate) {
+    const today = new Date();
+    selectedDate = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  }
+  renderCalendar();
+}
+async function renderCalendar() {
+  await fetchAllOrders(false);
+  const monthNames = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+  document.getElementById('monthYear').innerText = `${monthNames[currentMonth]} ${currentYear}`;
+  const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+  const daysInMonth = new Date(currentYear, currentMonth+1, 0).getDate();
+  let startOffset = (firstDay === 0 ? 6 : firstDay - 1);
+  const totalCells = Math.ceil((startOffset + daysInMonth) / 7) * 7;
+  let grid = '<div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div>Сб</div><div>Вс</div>';
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  const sumMap = new Map();
+  (cachedOrders || []).forEach(o => {
+    if (o && o.executionDate && typeof o.price === 'number') {
+      const ds = o.executionDate;
+      sumMap.set(ds, (sumMap.get(ds) || 0) + o.price);
+    }
+  });
+  let day = 1;
+  for (let i = 0; i < totalCells; i++) {
+    if (i < startOffset || day > daysInMonth) {
+      grid += `<div class="calendar-day" style="background:transparent;box-shadow:none;"></div>`;
+    } else {
+      const ds = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+      const isToday = (ds === todayStr);
+      const isSelected = (selectedDate === ds);
+      let classes = 'calendar-day';
+      if (isToday) classes += ' today';
+      if (isSelected) classes += ' selected';
+      const totalSum = sumMap.get(ds) || 0;
+      const sumDisplay = totalSum > 0 ? Math.round(totalSum) : '';
+      grid += `<div class="${classes}" data-date="${ds}">
+        ${day}
+        ${sumDisplay ? `<div class="calendar-sum">${sumDisplay}</div>` : '<div class="calendar-sum" style="visibility:hidden;">0</div>'}
+      </div>`;
+      day++;
+    }
+  }
+  document.getElementById('calendarGrid').innerHTML = grid;
+  document.querySelectorAll('.calendar-day[data-date]').forEach(el => {
+    el.onclick = async () => {
+      const newDate = el.getAttribute('data-date');
+      if (newDate === selectedDate) return;
+      selectedDate = newDate;
+      document.querySelectorAll('.calendar-day.selected').forEach(d => d.classList.remove('selected'));
+      el.classList.add('selected');
+      await loadOrdersForDate(selectedDate);
+    };
+  });
+  if (selectedDate) await loadOrdersForDate(selectedDate);
+}
+async function loadOrdersForDate(dateStr) {
+  if (!cachedOrders.length) await fetchAllOrders();
+  if (!cachedClients.length) await fetchClients();
+  const clientMap = {};
+  (cachedClients || []).forEach(c => clientMap[c.id] = c);
+  const ordersOnDate = (cachedOrders || []).filter(o => o && o.executionDate === dateStr);
+  const container = document.getElementById('ordersList');
+  if (ordersOnDate.length === 0) {
+    container.innerHTML = '<div class="card">📭 Нет заказов на эту дату</div>';
+    return;
+  }
+  let html = `<div class="card"><h3>📅 Заказы на ${escapeHtml(dateStr)}</h3>`;
+  for (const o of ordersOnDate) {
+    const client = clientMap[o.clientId];
+    let statusClass = '';
+    if (o.status === 'в работе') statusClass = 'work';
+    else if (o.status === 'оплачен') statusClass = 'paid';
+    else if (o.status === 'завершен') statusClass = 'completed';
+    else if (o.status === 'отменён') statusClass = 'canceled';
+    html += `<div class="order-card-clickable status-${statusClass}" data-id="${o.id}">
+      <b>#${o.id}</b> — ${client ? escapeHtml(client.name) : 'Неизвестный'}<br>
+      💰 ${o.price} BYN | Статус: ${escapeHtml(o.status)}<br>
+      ${o.details ? `📝 ${escapeHtml(o.details)}<br>` : ''}
+      ${o.delivery ? `🚚 ${escapeHtml(o.delivery)}<br>` : ''}
+    </div>`;
+  }
+  html += `</div>`;
+  container.innerHTML = html;
+  document.querySelectorAll('.order-card-clickable').forEach(card => {
+    card.onclick = () => {
+      const orderId = parseInt(card.getAttribute('data-id'));
+      const order = cachedOrders.find(o => o.id === orderId);
+      if (!order) return;
+      const client = clientMap[order.clientId];
+      showOrderDetailsModal(order, client);
+    };
+  });
+}
+function showOrderDetailsModal(order, client) {
+  let currentStatus = order.status;
+  // Поля клиента – только для отображения (редактирование через API пока не реализовано)
+  const modalHtml = `
+    <div id="editOrderModal" class="modal" onclick="if(event.target===this) this.remove()">
+      <div class="modal-content">
+        <h3>✏️ #${order.id}</h3>
+        <p><strong>Клиент:</strong> ${escapeHtml(client ? client.name : 'Неизвестный')}<br>
+        <strong>Телефон:</strong> ${escapeHtml(client ? client.phone : '-')}<br>
+        <strong>Соц. сети:</strong> ${escapeHtml(client ? client.address : '-')}</p>
+        <hr>
+        <div class="status-group" id="statusGroup">
+          ${['в работе','оплачен','завершен','отменён'].map(s => `<button class="status-btn ${s === currentStatus ? 'active' : ''}" data-status="${s}">${s}</button>`).join('')}
+        </div>
+        <label>💰 Цена (BYN)</label>
+        <input type="number" id="editPrice" step="0.01" value="${order.price}">
+        <label>📝 Подробности</label>
+        <textarea id="editDetails" rows="2">${escapeHtml(order.details || '')}</textarea>
+        <label>🚚 Доставка</label>
+        <input type="text" id="editDelivery" value="${escapeHtml(order.delivery || '')}">
+        <label>📅 Дата выполнения</label>
+        <input type="date" id="editExecutionDate" value="${order.executionDate ? order.executionDate.split('T')[0] : ''}">
+        <div class="modal-buttons">
+          <button id="saveOrderEditBtn">💾 Сохранить</button>
+          <button id="deleteOrderBtn" style="background:#ef4444;">🗑️ Удалить заказ</button>
+          <button id="closeEditModalBtn" class="secondary">Отмена</button>
+        </div>
+        <hr>
+        <button id="showHistoryBtn" class="secondary" style="margin-top:8px;">📜 История изменений</button>
+        <div id="orderHistoryContainer" style="display:none; margin-top:12px; max-height:200px; overflow-y:auto; border-top:1px solid #e2e8f0; padding-top:8px;"></div>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  // Обработчики статуса
+  const statusBtns = document.querySelectorAll('#statusGroup .status-btn');
+  statusBtns.forEach(btn => {
+    btn.onclick = async () => {
+      const newStatus = btn.getAttribute('data-status');
+      if (newStatus === currentStatus) return;
+      statusBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentStatus = newStatus;
+      showSpinner();
+      const result = await apiCall(`/api/orders/${order.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: newStatus })
+      });
+      hideSpinner();
+      if (result.ok) {
+        sessionStorage.removeItem('cachedOrders');
+        cachedOrders = [];
+        renderCalendar();
+        if (selectedDate) loadOrdersForDate(selectedDate);
+        order.status = newStatus;
+      } else {
+        showToast(result.data.error || 'Ошибка обновления статуса', true);
+        statusBtns.forEach(b => {
+          if (b.getAttribute('data-status') === currentStatus) b.classList.add('active');
+          else b.classList.remove('active');
+        });
+      }
+    };
+  });
+  // Сохранение остальных полей
+  document.getElementById('saveOrderEditBtn').onclick = async () => {
+    const newPrice = parseFloat(document.getElementById('editPrice').value);
+    const newDetails = document.getElementById('editDetails').value;
+    const newDelivery = document.getElementById('editDelivery').value;
+    const newDate = document.getElementById('editExecutionDate').value;
+    const newStatus = currentStatus;
+    if (isNaN(newPrice)) { showToast('Цена должна быть числом', true); return; }
+    if (!newDate) { showToast('Укажите дату выполнения', true); return; }
+    showSpinner();
+    const result = await apiCall(`/api/orders/${order.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        price: newPrice,
+        details: newDetails,
+        delivery: newDelivery,
+        executionDate: newDate,
+        status: newStatus
+      })
+    });
+    hideSpinner();
+    if (result.ok) {
+      showToast('Заказ обновлён');
+      document.getElementById('editOrderModal').remove();
+      sessionStorage.removeItem('cachedOrders');
+      cachedOrders = [];
+      renderCalendar();
+      if (selectedDate) loadOrdersForDate(selectedDate);
+    } else {
+      showToast(result.data.error || 'Ошибка обновления', true);
+    }
+  };
+  // Удаление заказа
+  document.getElementById('deleteOrderBtn').onclick = async () => {
+    if (confirm('Удалить заказ? Это действие необратимо.')) {
+      showSpinner();
+      const result = await apiCall(`/api/orders/${order.id}`, { method: 'DELETE' });
+      hideSpinner();
+      if (result.ok) {
+        showToast('Заказ удалён');
+        document.getElementById('editOrderModal').remove();
+        sessionStorage.removeItem('cachedOrders');
+        cachedOrders = [];
+        renderCalendar();
+        if (selectedDate) loadOrdersForDate(selectedDate);
+      } else {
+        showToast(result.data.error || 'Ошибка удаления', true);
+      }
+    }
+  };
+  document.getElementById('closeEditModalBtn').onclick = () => document.getElementById('editOrderModal').remove();
+  // История изменений (заглушка)
+  document.getElementById('showHistoryBtn').onclick = () => {
+    const cont = document.getElementById('orderHistoryContainer');
+    if (cont.style.display === 'none') {
+      cont.innerHTML = '<div class="history-item">Функция истории изменений пока не реализована</div>';
+      cont.style.display = 'block';
+    } else {
+      cont.style.display = 'none';
+    }
+  };
+}
+async function showOrderForm() {
+  let selectedStatus = 'в работе';
+  const statuses = ['в работе', 'оплачен', 'завершен', 'отменён'];
+  // Загрузим список клиентов для выбора (придётся добавить селект)
+  await fetchClients();
+  const clientsOptions = cachedClients.map(c => `<option value="${c.id}">${escapeHtml(c.name)} (${escapeHtml(c.phone)})</option>`).join('');
+  const modalHtml = `
+    <div id="orderModal" class="modal" onclick="if(event.target===this) this.remove()">
+      <div class="modal-content">
+        <h3>➕ Новый заказ</h3>
+        <label>Клиент</label>
+        <select id="orderClientId">${clientsOptions}</select>
+        <label>💰 Цена (BYN) *</label>
+        <input type="number" id="orderPrice" step="0.01">
+        <label>📝 Подробности</label>
+        <textarea id="orderDetails" rows="2"></textarea>
+        <label>🚚 Доставка</label>
+        <input type="text" id="orderDelivery" placeholder="Курьером / Самовывоз">
+        <label>📅 Дата выполнения *</label>
+        <input type="date" id="orderDate">
+        <label>📌 Статус</label>
+        <div class="status-group" id="newOrderStatusGroup">
+          ${statuses.map(s => `<button class="status-btn ${s === selectedStatus ? 'active' : ''}" data-status="${s}">${s}</button>`).join('')}
+        </div>
+        <div class="modal-buttons">
+          <button id="saveOrderBtn">Сохранить</button>
+          <button id="closeModalBtn" class="secondary">Отмена</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  const statusBtns = document.querySelectorAll('#newOrderStatusGroup .status-btn');
+  statusBtns.forEach(btn => {
+    btn.onclick = () => {
+      selectedStatus = btn.getAttribute('data-status');
+      statusBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    };
+  });
+  document.getElementById('saveOrderBtn').onclick = async () => {
+    const clientId = parseInt(document.getElementById('orderClientId').value);
+    const price = parseFloat(document.getElementById('orderPrice').value);
+    const details = document.getElementById('orderDetails').value;
+    const delivery = document.getElementById('orderDelivery').value;
+    const date = document.getElementById('orderDate').value;
+    if (isNaN(clientId) || isNaN(price) || !date) {
+      alert('Заполните клиента, цену и дату выполнения');
+      return;
+    }
+    showSpinner();
+    const result = await apiCall('/api/orders', {
+      method: 'POST',
+      body: JSON.stringify({ clientId, price, status: selectedStatus, details, delivery, executionDate: date })
+    });
+    hideSpinner();
+    if (result.ok && result.data.success) {
+      alert(`✅ Заказ #${result.data.orderId} создан`);
+      document.getElementById('orderModal').remove();
+      sessionStorage.removeItem('cachedOrders');
+      cachedOrders = [];
+      await fetchAllOrders(true);
+      await renderCalendar();
+      if (selectedDate) await loadOrdersForDate(selectedDate);
+    } else {
+      alert('Ошибка при создании заказа');
+    }
+  };
+  document.getElementById('closeModalBtn').onclick = () => document.getElementById('orderModal').remove();
+}
+
+// ========== КАЛЬКУЛЯТОР (заглушка) ==========
+function renderCalculatorTab(container) {
+  container.innerHTML = `<h1>🧮 Калькулятор рецептов</h1><div class="card">Функция в разработке</div>`;
+}
+
+// ========== СКЛАД ==========
+async function renderStockTab(container) {
+  container.innerHTML = `<h1>📊 Склад</h1><button id="refreshStockBtn" class="secondary">Обновить</button>
+    <div id="stockTable" style="margin-top:12px;"></div>
+    <div class="card"><h3>✏️ Одиночная операция</h3>
+    <label>Материал</label><select id="stockMaterial"></select>
+    <label>Операция</label><select id="stockOperation"><option>Приход</option><option>Расход</option></select>
+    <label>Количество</label><input type="number" id="stockQty" step="any">
+    <label>Комментарий</label><input type="text" id="stockComment">
+    <button id="stockExecute">Выполнить</button></div>`;
+  async function refreshStock() {
+    showSpinner();
+    const result = await apiCall('/api/stock');
+    hideSpinner();
+    if (result.ok && Array.isArray(result.data)) {
+      let html = '<div class="card"><table style="width:100%; border-collapse: collapse;"><thead><tr><th>ID</th><th>Материал</th><th>Остаток</th><tr></thead><tbody>';
+      result.data.forEach(s => {
+        html += `<tr><td>${s.id}</td><td>${escapeHtml(s.name)}</td><td style="text-align:right">${s.stock}</td></tr>`;
+      });
+      html += '</tbody></table></div>';
+      document.getElementById('stockTable').innerHTML = html;
+    } else {
+      document.getElementById('stockTable').innerHTML = '<div class="alert">Ошибка загрузки склада</div>';
+    }
+    // Заполнить выпадающий список материалов (используем те же данные)
+    const select = document.getElementById('stockMaterial');
+    select.innerHTML = '<option value="">-- Выберите --</option>';
+    result.data.forEach(m => select.add(new Option(escapeHtml(m.name), m.name)));
+  }
+  await refreshStock();
+  document.getElementById('refreshStockBtn').onclick = refreshStock;
+  document.getElementById('stockExecute').onclick = async () => {
+    const mat = document.getElementById('stockMaterial').value;
+    const op = document.getElementById('stockOperation').value;
+    const qty = parseFloat(document.getElementById('stockQty').value);
+    const comm = document.getElementById('stockComment').value;
+    if (!mat || isNaN(qty) || qty <= 0) { alert('Заполните поля'); return; }
+    showSpinner();
+    // В API пока нет отдельного маршрута для обновления склада, поэтому заглушка
+    hideSpinner();
+    alert('Функция обновления склада в разработке. Пока можно изменять только через таблицу.');
+  };
+}
+
+// ========== ФИНАНСЫ ==========
+async function renderFinanceTab(container) {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth();
+  const firstDayStr = `${year}-${String(month+1).padStart(2,'0')}-01`;
+  const todayStr = `${year}-${String(month+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  container.innerHTML = `
+    <h1>💰 Доходы/Расходы</h1>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:16px;">
+      <input type="date" id="startDate" value="${firstDayStr}" style="flex:1;">
+      <input type="date" id="endDate" value="${todayStr}" style="flex:1;">
+      <button id="filterBtn" class="secondary" style="width:auto;">Показать</button>
+    </div>
+    <div id="summary"></div>
+    <div id="transactionsList" style="max-height:400px; overflow-y:auto;"></div>
+    <button id="addTransactionBtn">➕ Добавить операцию</button>
+  `;
+  async function loadData(start, end) {
+    showSpinner();
+    const result = await apiCall(`/api/finance?startDate=${start}&endDate=${end}`);
+    hideSpinner();
+    if (result.ok) {
+      document.getElementById('summary').innerHTML = `<div class="card">📊 Доходы: ${result.data.totalIncome} BYN<br>📉 Расходы: ${result.data.totalExpense} BYN<br>💰 Прибыль: ${result.data.profit} BYN</div>`;
+      const listDiv = document.getElementById('transactionsList');
+      if (!result.data.transactions || result.data.transactions.length === 0) {
+        listDiv.innerHTML = '<div class="card">📭 Нет операций</div>';
+        return;
+      }
+      let html = '<div class="card"><table style="width:100%; border-collapse: collapse;"><thead><tr><th>Дата</th><th>Тип</th><th>Категория</th><th>Сумма</th><th>Комментарий</th></tr></thead><tbody>';
+      result.data.transactions.sort((a,b)=>new Date(b.date)-new Date(a.date)).forEach(t => {
+        let displayDate = new Date(t.date).toLocaleDateString();
+        html += `<td><td>${escapeHtml(displayDate)}</td><td>${escapeHtml(t.type)}</td><td>${escapeHtml(t.category)}</td><td class="amount">${t.amount} BYN</td><td>${escapeHtml(t.comment||'')}</td></tr>`;
+      });
+      html += '</tbody></table></div>';
+      listDiv.innerHTML = html;
+    } else {
+      showToast('Ошибка загрузки финансов', true);
+    }
+  }
+  document.getElementById('filterBtn').onclick = () => {
+    const s = document.getElementById('startDate').value;
+    const e = document.getElementById('endDate').value;
+    if (s && e) loadData(s, e);
+  };
+  loadData(firstDayStr, todayStr);
+  document.getElementById('addTransactionBtn').onclick = () => {
+    alert('Добавление транзакций через API пока не реализовано. Используйте таблицу.');
+  };
+}
+
+// ========== МЕНЮ "ЕЩЁ" ==========
+function renderMoreTab(container) {
+  if (!document.getElementById('slideMenuOverlay')) {
+    const overlay = document.createElement('div'); overlay.id = 'slideMenuOverlay'; overlay.className = 'menu-overlay'; document.body.appendChild(overlay);
+    const panel = document.createElement('div'); panel.id = 'slideMenuPanel'; panel.className = 'slide-menu';
+    panel.innerHTML = `<h3 style="margin:0 0 16px;">📋 Меню</h3>
+      <button id="menuClientsBtn" class="secondary">👥 Клиенты</button>
+      <button id="menuAddRecipeBtn" class="secondary">📝 Добавить рецепт</button>
+      <button id="menuAddIngredientBtn" class="secondary">🧂 Добавить ингредиент</button>
+      <button id="menuHistoryOrdersBtn" class="secondary">📜 История заказов</button>
+      <button id="menuMassBatchBtn" class="secondary">📦 Массовые операции</button>
+      <button id="logoutBtn" class="secondary" style="background:#ef4444;">🚪 Выйти</button>
+      <button id="menuCloseBtn" class="secondary" style="background:#64748b;">✖ Закрыть</button>`;
+    document.body.appendChild(panel);
+    const closeMenu = () => { overlay.style.display = 'none'; panel.classList.remove('open'); };
+    const openMenu = () => { overlay.style.display = 'block'; panel.classList.add('open'); };
+    document.getElementById('menuClientsBtn').onclick = async () => {
+      await fetchClients();
+      let html = `<div class="card"><h3>👥 Клиенты</h3><table><thead><tr><th>Имя</th><th>Телефон</th><th>Соц. сети</th></tr></thead><tbody>`;
+      cachedClients.forEach(c => html += `<tr><td>${escapeHtml(c.name)}</td><td>${escapeHtml(c.phone||'')}</td><td>${escapeHtml(c.address||'')}</td></tr>`);
+      html += `</tbody></table></div>`;
+      container.innerHTML = html;
+      closeMenu();
+    };
+    document.getElementById('menuAddRecipeBtn').onclick = () => { container.innerHTML = '<div class="card">Функция добавления рецепта в разработке</div>'; closeMenu(); };
+    document.getElementById('menuAddIngredientBtn').onclick = () => { container.innerHTML = '<div class="card">Функция добавления ингредиента в разработке</div>'; closeMenu(); };
+    document.getElementById('menuHistoryOrdersBtn').onclick = async () => {
+      await fetchClients();
+      let selectHtml = `<div class="card"><h3>История заказов клиента</h3><select id="historyClientSelect"><option value="">-- Выберите клиента --</option>`;
+      cachedClients.forEach(c => selectHtml += `<option value="${c.id}">${escapeHtml(c.name)} (${c.phone||''})</option>`);
+      selectHtml += `</select><button id="showHistoryBtn">Показать</button><div id="historyResult"></div></div>`;
+      container.innerHTML = selectHtml;
+      document.getElementById('showHistoryBtn').onclick = async () => {
+        const cid = document.getElementById('historyClientSelect').value;
+        if (!cid) return;
+        const ordersResult = await apiCall('/api/orders');
+        if (ordersResult.ok) {
+          const orders = ordersResult.data.filter(o => o.clientId == cid);
+          if (orders.length === 0) { document.getElementById('historyResult').innerHTML = '<div class="card">Нет заказов</div>'; return; }
+          let tbl = '<div class="card"><table><thead><tr><th>ID</th><th>Дата создания</th><th>Цена</th><th>Статус</th><th>Дата выполнения</th></tr></thead><tbody>';
+          orders.forEach(o => tbl += `<tr><td>${o.id}</td><td>${new Date(o.created).toLocaleDateString()}</td><td>${o.price}</td><td>${o.status}</td><td>${o.executionDate ? new Date(o.executionDate).toLocaleDateString() : ''}</td></tr>`);
+          tbl += `</tbody></table></div>`;
+          document.getElementById('historyResult').innerHTML = tbl;
+        }
+      };
+      closeMenu();
+    };
+    document.getElementById('menuMassBatchBtn').onclick = () => { container.innerHTML = '<div class="card">Массовые операции в разработке</div>'; closeMenu(); };
+    document.getElementById('logoutBtn').onclick = () => logout();
+    document.getElementById('menuCloseBtn').onclick = closeMenu;
+    overlay.onclick = closeMenu;
+    const moreNavBtn = document.querySelector('.nav-item[data-tab="more"]');
+    if (moreNavBtn) { const newBtn = moreNavBtn.cloneNode(true); moreNavBtn.parentNode.replaceChild(newBtn, moreNavBtn); newBtn.addEventListener('click', (e) => { showTab('more'); openMenu(); }); }
+    else document.querySelector('.nav-item[data-tab="more"]').addEventListener('click', (e) => { showTab('more'); openMenu(); });
+    openMenu();
+  }
+  container.innerHTML = '<div class="card">☰ Выберите раздел в меню справа</div>';
+}
+
+// ========== ЗАПУСК ==========
+if (localStorage.getItem('loggedIn') === 'true') {
+  currentUser = JSON.parse(localStorage.getItem('currentUser'));
+  renderMainApp();
+} else {
+  renderLoginPage();
+}
+</script>
+<div id="toastMsg" class="toast"></div>
+</body>
+</html>
