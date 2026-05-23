@@ -1099,8 +1099,10 @@ function renderFinanceTab(container) {
   `;
 
   async function loadData(start, end) {
+    console.log('loadData вызвана с параметрами:', start, end);
     showSpinner();
     const result = await apiCall(`/api/finance?startDate=${start}&endDate=${end}`);
+    console.log('Результат apiCall:', result);
     hideSpinner();
     if (!result.ok) {
       document.getElementById('summary').innerHTML = '<div class="alert">Ошибка загрузки данных</div>';
