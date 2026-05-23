@@ -239,17 +239,21 @@ async function login(email, password) {
 }
 
 async function checkSession() {
+  showToast('Checking session...');
   const result = await apiCall('/api/me');
+  showToast('Result ok: ' + result.ok + ', status: ' + result.status);
   if (result.ok && result.data && result.data.email) {
     currentUser = result.data;
     localStorage.setItem('loggedIn', 'true');
     localStorage.setItem('currentUser', JSON.stringify(currentUser));
     renderMainApp();
+    showToast('Session restored');
   } else {
     localStorage.removeItem('access_token');
     localStorage.removeItem('loggedIn');
     localStorage.removeItem('currentUser');
     renderLoginPage();
+    showToast('Session invalid', true);
   }
 }
 
@@ -1667,6 +1671,7 @@ async function showAddUserForm(callback) {
 // ========== ИНИЦИАЛИЗАЦИЯ ПРИ ЗАГРУЗКЕ СТРАНИЦЫ ==========
 window.onload = function() {
   const token = localStorage.getItem('access_token');
+  showToast('Token found: ' + (token ? 'yes' : 'no'), !token);
   if (token && localStorage.getItem('loggedIn') === 'true') {
     checkSession();
   } else {
