@@ -1674,13 +1674,44 @@ async function showAddUserForm(callback) {
 // ========== ИНИЦИАЛИЗАЦИЯ ПРИ ЗАГРУЗКЕ СТРАНИЦЫ ==========
 window.onload = function() {
   const token = localStorage.getItem('access_token');
-  showToast('Token found: ' + (token ? 'yes' : 'no'), !token);
-  if (token && localStorage.getItem('loggedIn') === 'true') {
-    checkSession();
+  const loggedIn = localStorage.getItem('loggedIn') === 'true';
+  
+  if (token && loggedIn && localStorage.getItem('currentUser')) {
+    try {
+      currentUser = JSON.parse(localStorage.getItem('currentUser'));
+      // Сразу рендерим интерфейс (используем кэшированные данные)
+      renderMainApp();
+      // Фоново проверяем сессию и обновляем данные
+      checkSessionInBackground();
+    } catch(e) {
+      renderLoginPage();
+    }
   } else {
     renderLoginPage();
   }
 };
+
+async function checkSessionInBackground() {
+  const result = await apiCall('/api/me');
+  if (result.ok && result.data && result.data.email) {
+    // Обновляем пользователя, если изменился
+    if (JSON.stringify(currentUser) !== JSON.stringify(result.data)) {
+      currentUser = result.data;
+      localStorage.setItem('currentUser', JSON.stringify(currentUser));
+      // Обновляем интерфейс, если нужно (например, имя в меню)
+      if (typeof updateUserInterface === 'function') updateUserInterface();
+    }
+    // Также можно в фоне обновить заказы и клиентов (без спиннера)
+    fetchAllOrders(true).catch(console.error);
+    fetchClients(true).catch(console.error);
+  } else {
+    // Сессия невалидна – очищаем и показываем вход
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('loggedIn');
+    localStorage.removeItem('currentUser');
+    renderLoginPage();
+  }
+}
 </script>
 <div id="toastMsg" class="toast"></div>
 
