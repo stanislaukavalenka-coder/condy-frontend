@@ -198,7 +198,7 @@ async function apiCall(url, options = {}) {
   }
   const response = await fetch(API_BASE + url, {
     ...options,
-    credentials: 'omit', // больше не нужны куки
+    credentials: 'omit',   // куки больше не нужны
     headers
   });
   let data;
@@ -210,7 +210,6 @@ async function apiCall(url, options = {}) {
   }
   return { status: response.status, ok: response.ok, data };
 }
-
 // ========== АВТОРИЗАЦИЯ ==========
 async function register(name, email, password) {
   const result = await apiCall('/api/register', {
@@ -232,7 +231,7 @@ async function login(email, password) {
     currentUser = { name: result.data.name, role: result.data.role, email: result.data.email };
     localStorage.setItem('loggedIn', 'true');
     localStorage.setItem('currentUser', JSON.stringify(currentUser));
-    localStorage.setItem('access_token', result.data.token);
+    localStorage.setItem('access_token', result.data.token);   // ← сохраняем токен
     renderMainApp();
   } else {
     showToast(result.data.error || 'Ошибка входа', true);
@@ -521,7 +520,6 @@ async function loadOrdersForDate(dateStr) {
   const container = document.getElementById('ordersList');
   if (ordersOnDate.length === 0) {
     container.innerHTML = '<div class="card">📭 Нет заказов на эту дату</div>';
-    // удаляем старый обработчик, если был
     if (container._clickHandler) container.removeEventListener('click', container._clickHandler);
     return;
   }
@@ -543,7 +541,7 @@ async function loadOrdersForDate(dateStr) {
   html += `</div>`;
   container.innerHTML = html;
 
-  // Удаляем старый обработчик, чтобы не было дублирования
+  // Удаляем старый обработчик, если есть
   if (container._clickHandler) container.removeEventListener('click', container._clickHandler);
   
   const clickHandler = (e) => {
