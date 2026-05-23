@@ -188,7 +188,7 @@ let cachedOrders = [];
 let cachedClients = [];
 const API_BASE = 'https://condy-api.onrender.com';
 async function apiCall(url, options = {}) {
-  let token = localStorage.getItem('access_token');
+  const token = localStorage.getItem('access_token');
   const headers = {
     'Content-Type': 'application/json',
     ...options.headers
@@ -198,7 +198,7 @@ async function apiCall(url, options = {}) {
   }
   const response = await fetch(API_BASE + url, {
     ...options,
-    credentials: 'omit',  // можно omit, так как токен в заголовке
+    credentials: 'omit', // больше не нужны куки
     headers
   });
   let data;
@@ -232,7 +232,7 @@ async function login(email, password) {
     currentUser = { name: result.data.name, role: result.data.role, email: result.data.email };
     localStorage.setItem('loggedIn', 'true');
     localStorage.setItem('currentUser', JSON.stringify(currentUser));
-    localStorage.setItem('access_token', result.data.token);   // ← сохраняем токен
+    localStorage.setItem('access_token', result.data.token);
     renderMainApp();
   } else {
     showToast(result.data.error || 'Ошибка входа', true);
@@ -521,7 +521,7 @@ async function loadOrdersForDate(dateStr) {
   const container = document.getElementById('ordersList');
   if (ordersOnDate.length === 0) {
     container.innerHTML = '<div class="card">📭 Нет заказов на эту дату</div>';
-    // Удаляем старый обработчик, если был
+    // удаляем старый обработчик, если был
     if (container._clickHandler) container.removeEventListener('click', container._clickHandler);
     return;
   }
@@ -543,10 +543,9 @@ async function loadOrdersForDate(dateStr) {
   html += `</div>`;
   container.innerHTML = html;
 
-  // Удаляем старый обработчик, чтобы не дублировать
+  // Удаляем старый обработчик, чтобы не было дублирования
   if (container._clickHandler) container.removeEventListener('click', container._clickHandler);
   
-  // Создаём новый обработчик через делегирование
   const clickHandler = (e) => {
     const card = e.target.closest('.order-card-clickable');
     if (!card) return;
@@ -557,9 +556,8 @@ async function loadOrdersForDate(dateStr) {
     const client = clientMap[order.clientId];
     showOrderDetailsModal(order, client);
   };
-  
   container.addEventListener('click', clickHandler);
-  container._clickHandler = clickHandler; // сохраняем для удаления
+  container._clickHandler = clickHandler;
 }
 function showOrderDetailsModal(order, client) {
   let currentStatus = order.status;
@@ -1653,27 +1651,10 @@ async function showAddUserForm(callback) {
   document.getElementById('closeUserBtn').onclick = () => modal.remove();
 }
 // ========== ИНИЦИАЛИЗАЦИЯ ПРИ ЗАГРУЗКЕ СТРАНИЦЫ ==========
-window.onload = async function() {
-  // 1. Проверяем, есть ли токен в localStorage
+window.onload = function() {
   const token = localStorage.getItem('access_token');
-  const loggedIn = localStorage.getItem('loggedIn') === 'true';
-  
-  if (token && loggedIn) {
-    // 2. Пытаемся восстановить сессию через /api/me
-    showSpinner();
-    const result = await apiCall('/api/me');
-    hideSpinner();
-    if (result.ok && result.data && result.data.email) {
-      currentUser = result.data;
-      renderMainApp();
-      // Продлеваем токен (если нужно) – можно обновить localStorage, но он и так живёт 30 дней
-    } else {
-      // Токен невалиден – очищаем хранилище и показываем вход
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('loggedIn');
-      localStorage.removeItem('currentUser');
-      renderLoginPage();
-    }
+  if (token && localStorage.getItem('loggedIn') === 'true') {
+    checkSession();
   } else {
     renderLoginPage();
   }
