@@ -1052,6 +1052,35 @@ async function renderStockTab(container) {
 
 
 // =========================== 8. ДОХОДЫ/РАСХОДЫ ===========================
+// Парсинг даты в формате "DD.MM.YYYY HH:MM:SS" или ISO
+function parseCustomDate(dateStr) {
+  if (!dateStr) return new Date(0);
+  if (dateStr instanceof Date) return dateStr;
+  // Уже ISO?
+  if (dateStr.includes('T') && dateStr.includes('-')) return new Date(dateStr);
+  // Парсим DD.MM.YYYY HH:MM:SS
+  const parts = dateStr.split(' ');
+  const dateParts = parts[0].split('.');
+  const timeParts = parts[1] ? parts[1].split(':') : [0,0,0];
+  if (dateParts.length === 3) {
+    const year = parseInt(dateParts[2]);
+    const month = parseInt(dateParts[1]) - 1;
+    const day = parseInt(dateParts[0]);
+    const hour = parseInt(timeParts[0]);
+    const minute = parseInt(timeParts[1]);
+    const second = parseInt(timeParts[2] || 0);
+    return new Date(year, month, day, hour, minute, second);
+  }
+  return new Date(dateStr); // fallback
+}
+
+// Форматирование даты для отображения
+function formatDate(dateStr) {
+  const d = parseCustomDate(dateStr);
+  return d.toLocaleDateString();
+}
+
+  
 function renderFinanceTab(container) {
   const today = new Date();
   const year = today.getFullYear();
@@ -1072,131 +1101,45 @@ function renderFinanceTab(container) {
   `;
 
   async function loadData(start, end) {
-    showSpinner();
-    const result = await apiCall(`/api/finance?startDate=${start}&endDate=${end}`);
-    hideSpinner();
-    if (!result.ok) {
-      document.getElementById('summary').innerHTML = '<div class="alert">Ошибка загрузки данных</div>';
-      return;
-    }
-    const data = result.data;
-    document.getElementById('summary').innerHTML = `
-      <div class="card">
-        📊 <strong>Доходы:</strong> ${data.totalIncome} BYN<br>
-        📉 <strong>Расходы:</strong> ${data.totalExpense} BYN<br>
-        💰 <strong>Прибыль:</strong> ${data.profit} BYN
-      </div>
-    `;
-    const listDiv = document.getElementById('transactionsList');
-    if (!data.transactions || data.transactions.length === 0) {
-      listDiv.innerHTML = '<div class="card">📭 Нет операций за выбранный период</div>';
-      return;
-    }
-    data.transactions.sort((a,b) => new Date(b.date) - new Date(a.date));
-    // Внутри renderFinanceTab, в функции loadData, после получения данных:
-// Формируем таблицу
-let html = '<div class="card"><table style="width:100%; border-collapse: collapse;">';
-html += '<thead><tr><th>Дата</th><th>Тип</th><th>Категория</th><th>Сумма</th><th>Комментарий</th></td></thead><tbody>';
-
-for (const t of data.transactions) {
-  // --- Функция парсинга даты в формате "DD.MM.YYYY HH:MM:SS" ---
-  let displayDate = '';
-  if (t.date && typeof t.date === 'string') {
-    const parts = t.date.split(' ');
-    const dateParts = parts[0].split('.');
-    const timeParts = parts[1] ? parts[1].split(':') : [0, 0, 0];
-    if (dateParts.length === 3) {
-      const d = new Date(
-        parseInt(dateParts[2]),          // год
-        parseInt(dateParts[1]) - 1,      // месяц (0-11)
-        parseInt(dateParts[0]),          // день
-        parseInt(timeParts[0]),          // час
-        parseInt(timeParts[1]),          // минута
-        parseInt(timeParts[2] || 0)      // секунда
-      );
-      displayDate = d.toLocaleDateString();
-    } else {
-      displayDate = t.date; // fallback
-    }
-  } else if (t.date instanceof Date) {
-    displayDate = t.date.toLocaleDateString();
-  } else {
-    displayDate = t.date;
+  showSpinner();
+  const result = await apiCall(`/api/finance?startDate=${start}&endDate=${end}`);
+  hideSpinner();
+  if (!result.ok) {
+    document.getElementById('summary').innerHTML = '<div class="alert">Ошибка загрузки данных</div>';
+    return;
   }
-  // --- конец парсинга ---
-
-  html += `<tr>
-    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${escapeHtml(displayDate)}</td>
-    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${escapeHtml(t.type)}</td>
-    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${escapeHtml(t.category)}</td>
-    <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align:right;">${t.amount} BYN</td>
-    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${escapeHtml(t.comment || '')}</td>
-  </td>`;
-}
-html += '</tbody></table></div>';
-listDiv.innerHTML = html;
+  const data = result.data;
+  document.getElementById('summary').innerHTML = `
+    <div class="card">
+      📊 <strong>Доходы:</strong> ${data.totalIncome} BYN<br>
+      📉 <strong>Расходы:</strong> ${data.totalExpense} BYN<br>
+      💰 <strong>Прибыль:</strong> ${data.profit} BYN
+    </div>
+  `;
+  const listDiv = document.getElementById('transactionsList');
+  if (!data.transactions || data.transactions.length === 0) {
+    listDiv.innerHTML = '<div class="card">📭 Нет операций за выбранный период</div>';
+    return;
   }
 
-  document.getElementById('filterBtn').onclick = () => {
-    const s = document.getElementById('startDate').value;
-    const e = document.getElementById('endDate').value;
-    if (s && e) loadData(s, e);
-  };
-  loadData(firstDayStr, todayStr);
+  // Сортировка с использованием глобальной parseCustomDate
+  data.transactions.sort((a, b) => parseCustomDate(b.date) - parseCustomDate(a.date));
 
-  // Добавление операции
-  document.getElementById('addTransactionBtn').onclick = () => {
-    const modal = document.createElement('div');
-    modal.className = 'modal';
-    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-    modal.innerHTML = `
-      <div class="modal-content">
-        <h3>➕ Новая операция</h3>
-        <label>Тип</label>
-        <select id="transType"><option>Доход</option><option>Расход</option></select>
-        <label>Категория</label>
-        <input id="transCategory" placeholder="Например, Заказ, Зарплата, Аренда">
-        <label>Сумма (BYN)</label>
-        <input type="number" id="transAmount" step="0.01">
-        <label>Комментарий</label>
-        <input id="transComment" placeholder="Необязательно">
-        <div class="modal-buttons">
-          <button id="saveTransBtn">Сохранить</button>
-          <button id="closeTransBtn" class="secondary">Отмена</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(modal);
-    document.getElementById('saveTransBtn').onclick = async () => {
-      const type = document.getElementById('transType').value;
-      const cat = document.getElementById('transCategory').value.trim();
-      const amt = parseFloat(document.getElementById('transAmount').value);
-      const comm = document.getElementById('transComment').value;
-      if (!cat || isNaN(amt) || amt <= 0) {
-        showToast('Заполните категорию и корректную сумму', true);
-        return;
-      }
-      showSpinner();
-      const result = await apiCall('/api/transactions', {
-        method: 'POST',
-        body: JSON.stringify({ type, category: cat, amount: amt, comment: comm })
-      });
-      hideSpinner();
-      if (result.ok) {
-        showToast('Операция добавлена');
-        modal.remove();
-        const s = document.getElementById('startDate').value;
-        const e = document.getElementById('endDate').value;
-        if (s && e) loadData(s, e);
-      } else {
-        showToast(result.data.error || 'Ошибка добавления', true);
-      }
-    };
-    document.getElementById('closeTransBtn').onclick = () => modal.remove();
-  };
+  let html = '<div class="card"><table style="width:100%; border-collapse: collapse;">';
+  html += '<thead><tr><th>Дата</th><th>Тип</th><th>Категория</th><th>Сумма</th><th>Комментарий</th></tr></thead><tbody>';
+  for (const t of data.transactions) {
+    const displayDate = formatDate(t.date);
+    html += `<tr>
+      <td style="padding: 8px; border-bottom: 1px solid #ddd;">${escapeHtml(displayDate)}</td>
+      <td style="padding: 8px; border-bottom: 1px solid #ddd;">${escapeHtml(t.type)}</td>
+      <td style="padding: 8px; border-bottom: 1px solid #ddd;">${escapeHtml(t.category)}</td>
+      <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align:right;">${t.amount} BYN</td>
+      <td style="padding: 8px; border-bottom: 1px solid #ddd;">${escapeHtml(t.comment || '')}</td>
+    </tr>`;
+  }
+  html += '</tbody></table></div>';
+  listDiv.innerHTML = html;
 }
-
-
 // =========================== 9. ВКЛАДКА "ЕЩЁ" ===========================
 function renderMoreTab(container) {
   if (!document.getElementById('slideMenuOverlay')) {
