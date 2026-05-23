@@ -335,13 +335,15 @@ function hideSpinner() {
 async function fetchAllOrders(force = false) {
   if (!force && sessionStorage.getItem('cachedOrders')) {
     cachedOrders = JSON.parse(sessionStorage.getItem('cachedOrders'));
+    // Убедимся, что id преобразованы в числа
+    cachedOrders = cachedOrders.map(o => ({ ...o, id: Number(o.id) }));
     return cachedOrders;
   }
   showSpinner();
   const result = await apiCall('/api/orders');
   hideSpinner();
   if (result.ok && Array.isArray(result.data)) {
-    cachedOrders = result.data;
+    cachedOrders = result.data.map(o => ({ ...o, id: Number(o.id) }));
     sessionStorage.setItem('cachedOrders', JSON.stringify(cachedOrders));
   } else {
     console.error('Ошибка загрузки заказов', result);
@@ -556,8 +558,7 @@ async function loadOrdersForDate(dateStr) {
     e.preventDefault();
     e.stopPropagation();
     const orderId = parseInt(card.getAttribute('data-id'));
-    console.log('Клик по заказу, orderId:', orderId);
-    const order = cachedOrders.find(o => o.id === orderId);
+    const order = cachedOrders.find(o => Number(o.id) === orderId);
     if (!order) {
       console.warn('Заказ не найден в cachedOrders');
       return;
