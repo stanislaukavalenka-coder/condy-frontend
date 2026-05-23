@@ -572,6 +572,7 @@ async function loadOrdersForDate(dateStr) {
   document.addEventListener('click', window._orderClickHandler);
 }
 function showOrderDetailsModal(order, client) {
+  console.log('showOrderDetailsModal вызвана', order, client);
   let currentStatus = order.status;
   // Поля для клиента
   const modalHtml = `
