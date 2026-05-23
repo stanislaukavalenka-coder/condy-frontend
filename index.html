@@ -512,6 +512,8 @@ async function loadOrdersForDate(dateStr) {
   const container = document.getElementById('ordersList');
   if (ordersOnDate.length === 0) {
     container.innerHTML = '<div class="card">📭 Нет заказов на эту дату</div>';
+    // Удаляем старый обработчик, если был
+    if (container._clickHandler) container.removeEventListener('click', container._clickHandler);
     return;
   }
   let html = `<div class="card"><h3>📅 Заказы на ${escapeHtml(dateStr)}</h3>`;
@@ -522,7 +524,6 @@ async function loadOrdersForDate(dateStr) {
     else if (o.status === 'оплачен') statusClass = 'paid';
     else if (o.status === 'завершен') statusClass = 'completed';
     else if (o.status === 'отменён') statusClass = 'canceled';
-    // Используем data-id, а не JSON
     html += `<div class="order-card-clickable status-${statusClass}" data-id="${o.id}">
       <b>#${o.id}</b> — ${client ? escapeHtml(client.name) : 'Неизвестный'}<br>
       💰 ${o.price} BYN | Статус: ${escapeHtml(o.status)}<br>
@@ -532,19 +533,25 @@ async function loadOrdersForDate(dateStr) {
   }
   html += `</div>`;
   container.innerHTML = html;
-  // Привязываем обработчики клика
-  document.querySelectorAll('.order-card-clickable').forEach(card => {
-    card.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const orderId = parseInt(card.getAttribute('data-id'));
-      const order = cachedOrders.find(o => o.id === orderId);
-      if (!order) return;
-      const client = clientMap[order.clientId];
-      showOrderDetailsModal(order, client);
-    });
-  });
-}
 
+  // Удаляем старый обработчик, чтобы не дублировать
+  if (container._clickHandler) container.removeEventListener('click', container._clickHandler);
+  
+  // Создаём новый обработчик через делегирование
+  const clickHandler = (e) => {
+    const card = e.target.closest('.order-card-clickable');
+    if (!card) return;
+    e.stopPropagation();
+    const orderId = parseInt(card.getAttribute('data-id'));
+    const order = cachedOrders.find(o => o.id === orderId);
+    if (!order) return;
+    const client = clientMap[order.clientId];
+    showOrderDetailsModal(order, client);
+  };
+  
+  container.addEventListener('click', clickHandler);
+  container._clickHandler = clickHandler; // сохраняем для удаления
+}
 function showOrderDetailsModal(order, client) {
   let currentStatus = order.status;
   // Поля для клиента
