@@ -512,17 +512,20 @@ async function renderCalendar() {
 }
 
 async function loadOrdersForDate(dateStr) {
+  console.log('loadOrdersForDate вызвана для даты', dateStr);
   if (!cachedOrders.length) await fetchAllOrders();
   if (!cachedClients.length) await fetchClients();
+  
   const clientMap = {};
   (cachedClients || []).forEach(c => clientMap[c.id] = c);
   const ordersOnDate = (cachedOrders || []).filter(o => o && o.executionDate && o.executionDate === dateStr);
   const container = document.getElementById('ordersList');
+  
   if (ordersOnDate.length === 0) {
     container.innerHTML = '<div class="card">📭 Нет заказов на эту дату</div>';
-    if (container._clickHandler) container.removeEventListener('click', container._clickHandler);
     return;
   }
+  
   let html = `<div class="card"><h3>📅 Заказы на ${escapeHtml(dateStr)}</h3>`;
   for (const o of ordersOnDate) {
     const client = clientMap[o.clientId];
@@ -541,21 +544,32 @@ async function loadOrdersForDate(dateStr) {
   html += `</div>`;
   container.innerHTML = html;
 
-  // Удаляем старый обработчик, если есть
-  if (container._clickHandler) container.removeEventListener('click', container._clickHandler);
-  
-  const clickHandler = (e) => {
+  // Удаляем старый глобальный обработчик, если он был (чтобы не дублировать)
+  if (window._orderClickHandler) {
+    document.removeEventListener('click', window._orderClickHandler);
+  }
+
+  // Создаём глобальный обработчик на весь документ (делегирование)
+  window._orderClickHandler = function(e) {
     const card = e.target.closest('.order-card-clickable');
     if (!card) return;
+    e.preventDefault();
     e.stopPropagation();
     const orderId = parseInt(card.getAttribute('data-id'));
+    console.log('Клик по заказу, orderId:', orderId);
     const order = cachedOrders.find(o => o.id === orderId);
-    if (!order) return;
+    if (!order) {
+      console.warn('Заказ не найден в cachedOrders');
+      return;
+    }
     const client = clientMap[order.clientId];
+    if (typeof showOrderDetailsModal !== 'function') {
+      console.error('Функция showOrderDetailsModal не определена!');
+      return;
+    }
     showOrderDetailsModal(order, client);
   };
-  container.addEventListener('click', clickHandler);
-  container._clickHandler = clickHandler;
+  document.addEventListener('click', window._orderClickHandler);
 }
 function showOrderDetailsModal(order, client) {
   let currentStatus = order.status;
