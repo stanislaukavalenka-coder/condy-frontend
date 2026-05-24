@@ -336,39 +336,38 @@ function hideSpinner() {
   if (overlay) overlay.style.display = 'none';
 }
 
-async function fetchAllOrders(force = false) {
+async function fetchAllOrders(force = false, silent = false) {
   if (!force && sessionStorage.getItem('cachedOrders')) {
     cachedOrders = JSON.parse(sessionStorage.getItem('cachedOrders'));
-    // Убедимся, что id преобразованы в числа
-    cachedOrders = cachedOrders.map(o => ({ ...o, id: Number(o.id) }));
     return cachedOrders;
   }
-  showSpinner();
+  if (!silent) showSpinner();
   const result = await apiCall('/api/orders');
-  hideSpinner();
+  if (!silent) hideSpinner();
   if (result.ok && Array.isArray(result.data)) {
     cachedOrders = result.data.map(o => ({ ...o, id: Number(o.id) }));
     sessionStorage.setItem('cachedOrders', JSON.stringify(cachedOrders));
   } else {
     console.error('Ошибка загрузки заказов', result);
-    cachedOrders = [];
   }
   return cachedOrders;
 }
 
-async function fetchClients(force = false) {
+async function fetchClients(force = false, silent = false) {
   if (!force && sessionStorage.getItem('cachedClients')) {
     cachedClients = JSON.parse(sessionStorage.getItem('cachedClients'));
     return cachedClients;
   }
-  showSpinner();
+  if (!silent) showSpinner();
   const result = await apiCall('/api/clients');
-  hideSpinner();
+  if (!silent) hideSpinner();
+  
   if (result.ok && Array.isArray(result.data)) {
     cachedClients = result.data;
     sessionStorage.setItem('cachedClients', JSON.stringify(cachedClients));
   } else {
     console.error('Ошибка загрузки клиентов', result);
+    if (!silent) showToast('Ошибка загрузки клиентов', true);
     cachedClients = [];
   }
   return cachedClients;
@@ -1672,19 +1671,31 @@ async function showAddUserForm(callback) {
   document.getElementById('closeUserBtn').onclick = () => modal.remove();
 }
 // ========== ИНИЦИАЛИЗАЦИЯ ПРИ ЗАГРУЗКЕ СТРАНИЦЫ ==========
-window.onload = function() {
+window.onload = async function() {
   const token = localStorage.getItem('access_token');
   const loggedIn = localStorage.getItem('loggedIn') === 'true';
   
-  if (token && loggedIn && localStorage.getItem('currentUser')) {
+  if (token && loggedIn) {
+    // 1. Восстанавливаем пользователя из localStorage
+    currentUser = JSON.parse(localStorage.getItem('currentUser'));
+    
+    // 2. Загружаем кэшированные заказы и клиентов (если есть)
+    const cachedOrdersRaw = sessionStorage.getItem('cachedOrders');
+    const cachedClientsRaw = sessionStorage.getItem('cachedClients');
+    if (cachedOrdersRaw) cachedOrders = JSON.parse(cachedOrdersRaw);
+    if (cachedClientsRaw) cachedClients = JSON.parse(cachedClientsRaw);
+    
+    // 3. Сразу рендерим главный экран (даже если данных нет – будет пусто, но не спиннер)
+    renderMainApp();
+    
+    // 4. Фоново обновляем данные (без спиннера) и перерисовываем активную вкладку
     try {
-      currentUser = JSON.parse(localStorage.getItem('currentUser'));
-      // Сразу рендерим интерфейс (используем кэшированные данные)
-      renderMainApp();
-      // Фоново проверяем сессию и обновляем данные
-      checkSessionInBackground();
-    } catch(e) {
-      renderLoginPage();
+      await Promise.all([fetchAllOrders(true), fetchClients(true)]);
+      // Обновляем текущую вкладку, чтобы показать свежие данные
+      const activeTab = document.querySelector('.nav-item.active')?.getAttribute('data-tab') || 'orders';
+      showTab(activeTab);
+    } catch (err) {
+      console.error('Ошибка фонового обновления:', err);
     }
   } else {
     renderLoginPage();
