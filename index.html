@@ -567,8 +567,8 @@ async function loadOrdersForDate(dateStr) {
       return;
     }
     const client = clientMap[order.clientId];
-    if (typeof showOrderDetailsModal !== 'function') {
-      console.error('Функция showOrderDetailsModal не определена!');
+    if (typeof  !== 'function') {
+      console.error('Функция  не определена!');
       return;
     }
     showOrderDetailsModal(order, client);
@@ -647,7 +647,7 @@ function showOrderDetailsModal(order, client) {
         sessionStorage.removeItem('cachedOrders');
         cachedOrders = [];
         renderCalendar();
-        if (selectedDate) loadOrdersForDate(selectedDate);
+        // Убираем лишний вызов loadOrdersForDate, так как renderCalendar уже вызывает его
         order.status = newStatus;
       } else {
         showToast(result.data.error || 'Ошибка обновления статуса', true);
@@ -660,13 +660,14 @@ function showOrderDetailsModal(order, client) {
     };
   });
 
-  // Сохранение всех полей (клиент + заказ)
+  // Сохранение всех полей (клиент + заказ) – отправляем данные клиента в запросе обновления заказа
   document.getElementById('saveOrderEditBtn').onclick = async () => {
     let newClientName = document.getElementById('editClientName').value.trim();
     let newClientPhone = document.getElementById('editClientPhone').value.trim();
-    const newClientAddress = document.getElementById('editClientAddress').value.trim();
-    if (!newClientName) newClientName = "Аноним";
-    if (!newClientPhone) newClientPhone = "не указан";
+    let newClientAddress = document.getElementById('editClientAddress').value.trim();
+
+    // Не заменяем пустые значения на "Аноним"/"не указан" – пусть остаются пустыми, сервер сам решит
+    // (но можно оставить как есть, если сервер обрабатывает "Аноним" как отсутствие имени)
 
     const newPrice = parseFloat(document.getElementById('editPrice').value);
     const newDetails = document.getElementById('editDetails').value;
@@ -680,31 +681,16 @@ function showOrderDetailsModal(order, client) {
     showSpinner();
 
     try {
-      // 1. Обновляем или создаём клиента
-      let clientId;
-      if (client && client.id) {
-        // Обновляем существующего
-        const updateClientRes = await apiCall(`/api/clients/${client.id}`, {
-          method: 'PUT',
-          body: JSON.stringify({ name: newClientName, phone: newClientPhone, address: newClientAddress })
-        });
-        if (!updateClientRes.ok) throw new Error(updateClientRes.data.error || 'Ошибка обновления клиента');
-        clientId = client.id;
-      } else {
-        // Создаём нового
-        const createClientRes = await apiCall('/api/clients', {
-          method: 'POST',
-          body: JSON.stringify({ name: newClientName, phone: newClientPhone, address: newClientAddress })
-        });
-        if (!createClientRes.ok) throw new Error(createClientRes.data.error || 'Ошибка создания клиента');
-        clientId = createClientRes.data.id;
-      }
-
-      // 2. Обновляем заказ
+      // Отправляем запрос на обновление заказа, включая данные клиента (имя, телефон, соцсети)
+      // Сервер сам решит, нужно ли создать/обновить клиента, и какой clientId присвоить заказу
       const updateOrderRes = await apiCall(`/api/orders/${order.id}`, {
         method: 'PUT',
         body: JSON.stringify({
-          clientId: clientId,
+          // Если клиент уже был привязан, можно передать его id (опционально, сервер может и без него обойтись)
+          // clientId: client ? client.id : null,
+          clientName: newClientName,
+          clientPhone: newClientPhone,
+          clientAddress: newClientAddress,
           price: newPrice,
           details: newDetails,
           delivery: newDelivery,
@@ -716,12 +702,14 @@ function showOrderDetailsModal(order, client) {
 
       showToast('Заказ обновлён');
       document.getElementById('editOrderModal').remove();
+      // Очищаем кэши
       sessionStorage.removeItem('cachedOrders');
       sessionStorage.removeItem('cachedClients');
       cachedOrders = [];
       cachedClients = [];
+      // Обновляем отображение
       renderCalendar();
-      if (selectedDate) loadOrdersForDate(selectedDate);
+      // Убираем лишний loadOrdersForDate
     } catch (err) {
       showToast(err.message, true);
     } finally {
@@ -731,7 +719,6 @@ function showOrderDetailsModal(order, client) {
 
   // Удаление заказа
   document.getElementById('deleteOrderBtn').onclick = async () => {
-    // TODO: заменить confirm на кастомное модальное окно подтверждения
     if (confirm('Удалить заказ? Это действие необратимо.')) {
       showSpinner();
       const result = await apiCall(`/api/orders/${order.id}`, { method: 'DELETE' });
@@ -742,7 +729,6 @@ function showOrderDetailsModal(order, client) {
         sessionStorage.removeItem('cachedOrders');
         cachedOrders = [];
         renderCalendar();
-        if (selectedDate) loadOrdersForDate(selectedDate);
       } else {
         showToast(result.data.error || 'Ошибка удаления', true);
       }
@@ -762,7 +748,6 @@ function showOrderDetailsModal(order, client) {
     }
   };
 }
-
 
 
 
@@ -817,6 +802,79 @@ function showOrderForm() {
   const nameInput = document.getElementById('clientName');
   const msgDiv = document.getElementById('phoneCheckMsg');
 
+  // Вспомогательная функция локального поиска клиента по телефону (только для подсказки)
+  function findClientByPhone(phone) {
+    const normalized = phone.replace(/[^0-9+]/g, '');
+    return cachedClients.find(c => c.phone && c.phone.replace(/[^0-9+]/g, '') === normalized);
+  }
+
+  phoneInput.addEventListener('blur', async () => {
+    const phone = phoneInput.value.trim();
+    if (phone.length < 3) return;
+    if (!cachedClients.length) await fetchClients();
+    const found = findClientByPhone(phone);
+    if (found) {
+      nameInput.value = found.name;
+      msgDiv.innerHTML = '<span style="color:green;">✅ Клиент найден</span>';
+    } else {
+      msgDiv.innerHTML = '<span style="color:orange;">⚠️ Новый клиент будет создан</span>';
+    }
+  });
+
+  document.getElementById('saveOrderBtn').onclick = async () => {
+    let clientName = document.getElementById('clientName').value.trim();
+    let clientPhone = document.getElementById('clientPhone').value.trim();
+    let clientSocial = document.getElementById('clientSocial').value.trim();
+    let price = parseFloat(document.getElementById('orderPrice').value);
+    let details = document.getElementById('orderDetails').value;
+    let delivery = document.getElementById('orderDelivery').value;
+    let date = document.getElementById('orderDate').value;
+    let activeBtn = document.querySelector('#newOrderStatusGroup .status-btn.active');
+    let finalStatus = activeBtn ? activeBtn.getAttribute('data-status') : 'в работе';
+
+    if (!clientName) clientName = "Аноним";
+    if (!clientPhone) clientPhone = "не указан";
+    if (isNaN(price) || !date) {
+      showToast('Заполните цену и дату выполнения', true);
+      return;
+    }
+
+    showSpinner();
+
+    try {
+      // Отправляем данные клиента и заказа в одном запросе
+      const orderRes = await apiCall('/api/orders', {
+        method: 'POST',
+        body: JSON.stringify({
+          clientName: clientName,
+          clientPhone: clientPhone,
+          clientAddress: clientSocial,
+          price: price,
+          status: finalStatus,
+          details: details,
+          delivery: delivery,
+          executionDate: date
+        })
+      });
+      if (!orderRes.ok) throw new Error(orderRes.data.error || 'Ошибка создания заказа');
+
+      showToast(`✅ Заказ #${orderRes.data.orderId} создан`);
+      document.getElementById('orderModal').remove();
+      sessionStorage.removeItem('cachedOrders');
+      sessionStorage.removeItem('cachedClients');
+      cachedOrders = [];
+      cachedClients = [];
+      await fetchAllOrders(true);
+      await renderCalendar();
+    } catch (err) {
+      showToast(err.message, true);
+    } finally {
+      hideSpinner();
+    }
+  };
+
+  document.getElementById('closeModalBtn').onclick = () => document.getElementById('orderModal').remove();
+}
   // Функция локального поиска клиента по телефону (из кэша cachedClients)
   function findClientByPhone(phone) {
     const normalized = phone.replace(/[^0-9+]/g, ''); // простая нормализация
