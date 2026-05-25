@@ -567,10 +567,10 @@ async function loadOrdersForDate(dateStr) {
       return;
     }
     const client = clientMap[order.clientId];
-    if (typeof  !== 'function') {
-      console.error('Функция  не определена!');
-      return;
-    }
+    if (typeof showOrderDetailsModal !== 'function') {
+  console.error('Функция showOrderDetailsModal не определена!');
+  return;
+}
     showOrderDetailsModal(order, client);
   };
   document.addEventListener('click', window._orderClickHandler);
