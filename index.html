@@ -802,7 +802,7 @@ function showOrderForm() {
   const nameInput = document.getElementById('clientName');
   const msgDiv = document.getElementById('phoneCheckMsg');
 
-  // Вспомогательная функция локального поиска клиента по телефону (только для подсказки)
+  // Функция локального поиска клиента по телефону (только для подсказки)
   function findClientByPhone(phone) {
     const normalized = phone.replace(/[^0-9+]/g, '');
     return cachedClients.find(c => c.phone && c.phone.replace(/[^0-9+]/g, '') === normalized);
@@ -875,105 +875,6 @@ function showOrderForm() {
 
   document.getElementById('closeModalBtn').onclick = () => document.getElementById('orderModal').remove();
 }
-  // Функция локального поиска клиента по телефону (из кэша cachedClients)
-  function findClientByPhone(phone) {
-    const normalized = phone.replace(/[^0-9+]/g, ''); // простая нормализация
-    return cachedClients.find(c => c.phone && c.phone.replace(/[^0-9+]/g, '') === normalized);
-  }
-
-  phoneInput.addEventListener('blur', async () => {
-    const phone = phoneInput.value.trim();
-    if (phone.length < 3) return;
-    // Убедимся, что кэш клиентов загружен
-    if (!cachedClients.length) await fetchClients();
-    const found = findClientByPhone(phone);
-    if (found) {
-      nameInput.value = found.name;
-      msgDiv.innerHTML = '<span style="color:green;">✅ Клиент найден</span>';
-    } else {
-      msgDiv.innerHTML = '<span style="color:orange;">⚠️ Новый клиент будет создан</span>';
-    }
-  });
-
-  document.getElementById('saveOrderBtn').onclick = async () => {
-    let clientName = document.getElementById('clientName').value.trim();
-    let clientPhone = document.getElementById('clientPhone').value.trim();
-    let clientSocial = document.getElementById('clientSocial').value.trim();
-    let price = parseFloat(document.getElementById('orderPrice').value);
-    let details = document.getElementById('orderDetails').value;
-    let delivery = document.getElementById('orderDelivery').value;
-    let date = document.getElementById('orderDate').value;
-    let activeBtn = document.querySelector('#newOrderStatusGroup .status-btn.active');
-    let finalStatus = activeBtn ? activeBtn.getAttribute('data-status') : 'в работе';
-
-    if (!clientName) clientName = "Аноним";
-    if (!clientPhone) clientPhone = "не указан";
-    if (isNaN(price) || !date) {
-      showToast('Заполните цену и дату выполнения', true);
-      return;
-    }
-
-    showSpinner();
-
-    try {
-      // 1. Найти или создать клиента
-      let clientId = null;
-      if (!cachedClients.length) await fetchClients();
-      const existingClient = findClientByPhone(clientPhone);
-      if (existingClient) {
-        clientId = existingClient.id;
-        // Если имя или соцсети изменились – обновим (опционально)
-        if (existingClient.name !== clientName || existingClient.address !== clientSocial) {
-          const updateRes = await apiCall(`/api/clients/${existingClient.id}`, {
-            method: 'PUT',
-            body: JSON.stringify({ name: clientName, phone: clientPhone, address: clientSocial })
-          });
-          if (!updateRes.ok) throw new Error(updateRes.data.error || 'Ошибка обновления клиента');
-        }
-      } else {
-        // Создаём нового клиента
-        const createRes = await apiCall('/api/clients', {
-          method: 'POST',
-          body: JSON.stringify({ name: clientName, phone: clientPhone, address: clientSocial })
-        });
-        if (!createRes.ok) throw new Error(createRes.data.error || 'Ошибка создания клиента');
-        clientId = createRes.data.id;
-      }
-
-      // 2. Создать заказ
-      const orderRes = await apiCall('/api/orders', {
-        method: 'POST',
-        body: JSON.stringify({
-          clientId: clientId,
-          price: price,
-          status: finalStatus,
-          details: details,
-          delivery: delivery,
-          executionDate: date
-        })
-      });
-      if (!orderRes.ok) throw new Error(orderRes.data.error || 'Ошибка создания заказа');
-
-      showToast(`✅ Заказ #${orderRes.data.orderId} создан`);
-      document.getElementById('orderModal').remove();
-      sessionStorage.removeItem('cachedOrders');
-      sessionStorage.removeItem('cachedClients');
-      cachedOrders = [];
-      cachedClients = [];
-      await fetchAllOrders(true);
-      await renderCalendar();
-      if (selectedDate) await loadOrdersForDate(selectedDate);
-    } catch (err) {
-      showToast(err.message, true);
-    } finally {
-      hideSpinner();
-    }
-  };
-
-  document.getElementById('closeModalBtn').onclick = () => document.getElementById('orderModal').remove();
-}
-
-
 // =========================== 6. КАЛЬКУЛЯТОР ===========================
 function renderCalculatorTab(container) {
   container.innerHTML = `<h1>🧮 Калькулятор рецептов</h1>
