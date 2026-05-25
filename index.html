@@ -345,7 +345,12 @@ async function fetchAllOrders(force = false, silent = false) {
   const result = await apiCall('/api/orders');
   if (!silent) hideSpinner();
   if (result.ok && Array.isArray(result.data)) {
-    cachedOrders = result.data.map(o => ({ ...o, id: Number(o.id) }));
+    let orders = result.data.map(o => ({ ...o, id: Number(o.id) }));
+    // Удаляем дубликаты по id
+    orders = orders.filter((order, index, self) => 
+      index === self.findIndex(o => o.id === order.id)
+    );
+    cachedOrders = orders;
     sessionStorage.setItem('cachedOrders', JSON.stringify(cachedOrders));
   } else {
     console.error('Ошибка загрузки заказов', result);
