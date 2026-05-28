@@ -541,17 +541,17 @@ async function loadOrdersForDate(dateStr) {
   console.log('loadOrdersForDate вызвана для даты', dateStr);
   if (!cachedOrders.length) await fetchAllOrders();
   if (!cachedClients.length) await fetchClients();
-  
+
   const clientMap = {};
   (cachedClients || []).forEach(c => clientMap[c.id] = c);
   const ordersOnDate = (cachedOrders || []).filter(o => o && o.executionDate && o.executionDate === dateStr);
   const container = document.getElementById('ordersList');
-  
+
   if (ordersOnDate.length === 0) {
     container.innerHTML = '<div class="card">📭 Нет заказов на эту дату</div>';
     return;
   }
-  
+
   let html = `<div class="card"><h3>📅 Заказы на ${escapeHtml(dateStr)}</h3>`;
   for (const o of ordersOnDate) {
     const client = clientMap[o.clientId];
@@ -569,32 +569,6 @@ async function loadOrdersForDate(dateStr) {
   }
   html += `</div>`;
   container.innerHTML = html;
-
-  // Удаляем старый глобальный обработчик, если он был (чтобы не дублировать)
-  if (window._orderClickHandler) {
-    document.removeEventListener('click', window._orderClickHandler);
-  }
-
-  // Создаём глобальный обработчик на весь документ (делегирование)
-  window._orderClickHandler = function(e) {
-    const card = e.target.closest('.order-card-clickable');
-    if (!card) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const orderId = parseInt(card.getAttribute('data-id'));
-    const order = cachedOrders.find(o => Number(o.id) === orderId);
-    if (!order) {
-      console.warn('Заказ не найден в cachedOrders');
-      return;
-    }
-    const client = clientMap[order.clientId];
-    if (typeof showOrderDetailsModal !== 'function') {
-  console.error('Функция showOrderDetailsModal не определена!');
-  return;
-}
-    showOrderDetailsModal(order, client);
-  };
-  document.addEventListener('click', window._orderClickHandler);
 }
 function showOrderDetailsModal(order, client) {
   console.log('showOrderDetailsModal вызвана', order, client);
@@ -1651,6 +1625,29 @@ async function showAddUserForm(callback) {
   document.getElementById('closeUserBtn').onclick = () => modal.remove();
 }
 // ========== ИНИЦИАЛИЗАЦИЯ ПРИ ЗАГРУЗКЕ СТРАНИЦЫ ==========
+
+  // ========== ГЛОБАЛЬНЫЙ ОБРАБОТЧИК КЛИКОВ ПО ЗАКАЗАМ ==========
+document.addEventListener('click', function(e) {
+  const card = e.target.closest('.order-card-clickable');
+  if (!card) return;
+  e.preventDefault();
+  e.stopPropagation();
+
+  const orderId = parseInt(card.getAttribute('data-id'));
+  const order = cachedOrders.find(o => Number(o.id) === orderId);
+  if (!order) {
+    console.warn('Заказ не найден в cachedOrders');
+    showToast('Ошибка: заказ не найден', true);
+    return;
+  }
+
+  // Строим актуальную карту клиентов (на случай, если cachedClients обновились)
+  const clientMap = {};
+  (cachedClients || []).forEach(c => clientMap[c.id] = c);
+  const client = clientMap[order.clientId];
+  showOrderDetailsModal(order, client);
+});
+  
 window.onload = async function() {
   const token = localStorage.getItem('access_token');
   const loggedIn = localStorage.getItem('loggedIn') === 'true';
