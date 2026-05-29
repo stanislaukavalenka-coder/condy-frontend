@@ -1228,15 +1228,16 @@ function renderMoreTab(container) {
 
 // =========================== 10. ДОПОЛНИТЕЛЬНЫЕ РЕНДЕРЫ ===========================
 async function renderClientsManager(container) {
-  // Загружаем клиентов, если ещё нет
   if (!cachedClients.length) await fetchClients();
 
   container.innerHTML = `
     <div class="card">
-      <h3>👥 Клиенты</h3>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 style="margin: 0;">👥 Клиенты</h3>
+        <button id="newClientBtn" class="secondary" style="width: auto;">➕ Добавить клиента</button>
+      </div>
       <input type="text" id="clientSearchInput" placeholder="🔍 Поиск по имени или телефону..." style="margin-bottom: 12px;">
       <div id="clientsTableContainer"></div>
-      <button id="newClientBtn">➕ Новый клиент</button>
     </div>
   `;
 
@@ -1268,13 +1269,13 @@ async function renderClientsManager(container) {
         <td>${escapeHtml(c.name)}</td>
         <td>${escapeHtml(c.phone || '')}</td>
         <td>${escapeHtml(c.address || '')}</td>
-        <td><button class="editClientBtn" data-id="${c.id}">✏️</button></td>
-      </td>`;
+        <td><button class="editClientBtn" data-id="${c.id}" style="width: auto;">✏️</button></td>
+       </tr>`;
     });
     html += `</tbody></table>`;
     tableContainer.innerHTML = html;
 
-    // Обработчик клика по строке (открыть модалку с заказами клиента)
+    // Обработчик клика по строке (открыть заказы клиента)
     document.querySelectorAll('.client-row').forEach(row => {
       row.addEventListener('click', (e) => {
         if (e.target.classList.contains('editClientBtn')) return;
@@ -1334,9 +1335,7 @@ async function renderClientsManager(container) {
             </tbody>
           </table>
         </div>
-        <div class="modal-buttons">
-          <button id="closeClientOrdersModalBtn">Закрыть</button>
-        </div>
+        <div class="modal-buttons"><button id="closeClientOrdersModalBtn">Закрыть</button></div>
       </div>
     </div>
   `;
@@ -1346,45 +1345,68 @@ async function renderClientsManager(container) {
 
 function showClientForm(client, callback) {
   const modal = document.createElement('div');
-  modal.innerHTML = `<div id="clientModal" class="modal" onclick="if(event.target===this) this.remove()"><div class="modal-content"><h3>${client ? 'Редактировать' : 'Новый клиент'}</h3><label>Имя</label><input id="clientName" value="${client ? escapeHtml(client.name) : ''}"><label>Телефон</label><input id="clientPhone" value="${client ? escapeHtml(client.phone) : ''}"><label>Социальные сети</label><input id="clientAddress" value="${client ? escapeHtml(client.address) : ''}"><label>Примечания</label><textarea id="clientNotes">${client ? escapeHtml(client.notes) : ''}</textarea><div class="modal-buttons"><button id="saveClientBtn">Сохранить</button><button id="closeClientBtn" class="secondary">Отмена</button></div></div></div>`;
+  modal.className = 'modal';
+  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+  modal.innerHTML = `
+    <div class="modal-content">
+      <h3>${client ? 'Редактировать клиента' : 'Новый клиент'}</h3>
+      <label>Имя</label>
+      <input id="clientName" value="${client ? escapeHtml(client.name) : ''}">
+      <label>Телефон</label>
+      <input id="clientPhone" value="${client ? escapeHtml(client.phone) : ''}">
+      <label>Социальные сети</label>
+      <input id="clientAddress" value="${client ? escapeHtml(client.address) : ''}">
+      <label>Примечания</label>
+      <textarea id="clientNotes">${client ? escapeHtml(client.notes) : ''}</textarea>
+      <div class="modal-buttons">
+        <button id="saveClientBtn">Сохранить</button>
+        <button id="closeClientBtn" class="secondary">Отмена</button>
+      </div>
+    </div>
+  `;
   document.body.appendChild(modal);
-  
+
   document.getElementById('saveClientBtn').onclick = async () => {
     const name = document.getElementById('clientName').value.trim();
     const phone = document.getElementById('clientPhone').value.trim();
-    const addr = document.getElementById('clientAddress').value.trim();
+    const address = document.getElementById('clientAddress').value.trim();
     const notes = document.getElementById('clientNotes').value.trim();
+
     if (!name) {
       showToast('Имя обязательно', true);
       return;
     }
+
     showSpinner();
     let result;
     if (client) {
       // Обновление существующего клиента
       result = await apiCall(`/api/clients/${client.id}`, {
         method: 'PUT',
-        body: JSON.stringify({ name, phone, address: addr, notes })
+        body: JSON.stringify({ name, phone, address, notes })
       });
     } else {
       // Создание нового клиента
       result = await apiCall('/api/clients', {
         method: 'POST',
-        body: JSON.stringify({ name, phone, address: addr, notes })
+        body: JSON.stringify({ name, phone, address, notes })
       });
     }
     hideSpinner();
+
     if (result.ok) {
       showToast(client ? 'Клиент обновлён' : 'Клиент создан');
       modal.remove();
-      if (callback) callback();
-      // Обновляем кэш клиентов
+      // Очищаем кэш клиентов и перезагружаем
       sessionStorage.removeItem('cachedClients');
       cachedClients = [];
+      await fetchClients(true);
+      if (callback) callback();
     } else {
       showToast(result.data.error || 'Ошибка сохранения клиента', true);
     }
   };
+
   document.getElementById('closeClientBtn').onclick = () => modal.remove();
 }
 
