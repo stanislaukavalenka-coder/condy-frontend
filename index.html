@@ -656,61 +656,64 @@ function showOrderDetailsModal(order, client) {
   });
 
   // Сохранение всех полей (клиент + заказ) – отправляем данные клиента в запросе обновления заказа
-  document.getElementById('saveOrderEditBtn').onclick = async () => {
-    let newClientName = document.getElementById('editClientName').value.trim();
-    let newClientPhone = document.getElementById('editClientPhone').value.trim();
-    let newClientAddress = document.getElementById('editClientAddress').value.trim();
+document.getElementById('saveOrderEditBtn').onclick = async () => {
+  let newClientName = document.getElementById('editClientName').value.trim();
+  let newClientPhone = document.getElementById('editClientPhone').value.trim();
+  let newClientAddress = document.getElementById('editClientAddress').value.trim();
 
-    // Не заменяем пустые значения на "Аноним"/"не указан" – пусть остаются пустыми, сервер сам решит
-    // (но можно оставить как есть, если сервер обрабатывает "Аноним" как отсутствие имени)
+  const newPrice = parseFloat(document.getElementById('editPrice').value);
+  const newDetails = document.getElementById('editDetails').value;
+  const newDelivery = document.getElementById('editDelivery').value;
+  const newDate = document.getElementById('editExecutionDate').value;
+  const newStatus = currentStatus;
 
-    const newPrice = parseFloat(document.getElementById('editPrice').value);
-    const newDetails = document.getElementById('editDetails').value;
-    const newDelivery = document.getElementById('editDelivery').value;
-    const newDate = document.getElementById('editExecutionDate').value;
-    const newStatus = currentStatus;
+  if (isNaN(newPrice)) { showToast('Цена должна быть числом', true); return; }
+  if (!newDate) { showToast('Укажите дату выполнения', true); return; }
 
-    if (isNaN(newPrice)) { showToast('Цена должна быть числом', true); return; }
-    if (!newDate) { showToast('Укажите дату выполнения', true); return; }
+  showSpinner();
 
-    showSpinner();
+  try {
+    // ЛОГИРОВАНИЕ ПЕРЕД ОТПРАВКОЙ
+    console.log('📤 Отправляем данные клиента:', {
+      clientName: newClientName,
+      clientPhone: newClientPhone,
+      clientAddress: newClientAddress,
+      price: newPrice,
+      status: newStatus,
+      executionDate: newDate
+    });
 
-    try {
-      // Отправляем запрос на обновление заказа, включая данные клиента (имя, телефон, соцсети)
-      // Сервер сам решит, нужно ли создать/обновить клиента, и какой clientId присвоить заказу
-      const updateOrderRes = await apiCall(`/api/orders/${order.id}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          // Если клиент уже был привязан, можно передать его id (опционально, сервер может и без него обойтись)
-          // clientId: client ? client.id : null,
-          clientName: newClientName,
-          clientPhone: newClientPhone,
-          clientAddress: newClientAddress,
-          price: newPrice,
-          details: newDetails,
-          delivery: newDelivery,
-          executionDate: newDate,
-          status: newStatus
-        })
-      });
-      if (!updateOrderRes.ok) throw new Error(updateOrderRes.data.error || 'Ошибка обновления заказа');
+    const updateOrderRes = await apiCall(`/api/orders/${order.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        clientName: newClientName,
+        clientPhone: newClientPhone,
+        clientAddress: newClientAddress,
+        price: newPrice,
+        details: newDetails,
+        delivery: newDelivery,
+        executionDate: newDate,
+        status: newStatus
+      })
+    });
 
-      showToast('Заказ обновлён');
-      document.getElementById('editOrderModal').remove();
-      // Очищаем кэши
-      sessionStorage.removeItem('cachedOrders');
-      sessionStorage.removeItem('cachedClients');
-      cachedOrders = [];
-      cachedClients = [];
-      // Обновляем отображение
-      renderCalendar();
-      // Убираем лишний loadOrdersForDate
-    } catch (err) {
-      showToast(err.message, true);
-    } finally {
-      hideSpinner();
-    }
-  };
+    console.log('📥 Ответ сервера:', updateOrderRes);
+
+    if (!updateOrderRes.ok) throw new Error(updateOrderRes.data.error || 'Ошибка обновления заказа');
+
+    showToast('Заказ обновлён');
+    document.getElementById('editOrderModal').remove();
+    sessionStorage.removeItem('cachedOrders');
+    sessionStorage.removeItem('cachedClients');
+    cachedOrders = [];
+    cachedClients = [];
+    renderCalendar();
+  } catch (err) {
+    showToast(err.message, true);
+  } finally {
+    hideSpinner();
+  }
+};
 
   // Удаление заказа
   document.getElementById('deleteOrderBtn').onclick = async () => {
