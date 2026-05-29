@@ -313,6 +313,32 @@ window.addEventListener('storage', (event) => {
   }
 });
 // =========================== 2. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===========================
+
+  // Парсинг даты в формате "DD.MM.YYYY HH:MM:SS" или ISO
+function parseCustomDate(dateStr) {
+  if (!dateStr) return new Date(0);
+  if (dateStr instanceof Date) return dateStr;
+  if (typeof dateStr === 'string' && dateStr.includes('T') && dateStr.includes('-')) return new Date(dateStr);
+  const parts = dateStr.split(' ');
+  const dateParts = parts[0].split('.');
+  const timeParts = parts[1] ? parts[1].split(':') : [0,0,0];
+  if (dateParts.length === 3) {
+    const year = parseInt(dateParts[2]);
+    const month = parseInt(dateParts[1]) - 1;
+    const day = parseInt(dateParts[0]);
+    const hour = parseInt(timeParts[0]);
+    const minute = parseInt(timeParts[1]);
+    const second = parseInt(timeParts[2] || 0);
+    return new Date(year, month, day, hour, minute, second);
+  }
+  return new Date(dateStr);
+}
+function formatDateForDisplay(dateStr) {
+  if (!dateStr) return '—';
+  const d = parseCustomDate(dateStr);
+  return d.toLocaleDateString();
+}
+  
 function escapeHtml(str) {
   if (str === undefined || str === null) return '';
   str = String(str);
@@ -1008,25 +1034,7 @@ async function renderStockTab(container) {
 
 
 // =========================== 8. ДОХОДЫ/РАСХОДЫ ===========================
-// Парсинг даты в формате "DD.MM.YYYY HH:MM:SS" или ISO
-function parseCustomDate(dateStr) {
-  if (!dateStr) return new Date(0);
-  if (dateStr instanceof Date) return dateStr;
-  if (typeof dateStr === 'string' && dateStr.includes('T') && dateStr.includes('-')) return new Date(dateStr);
-  const parts = dateStr.split(' ');
-  const dateParts = parts[0].split('.');
-  const timeParts = parts[1] ? parts[1].split(':') : [0,0,0];
-  if (dateParts.length === 3) {
-    const year = parseInt(dateParts[2]);
-    const month = parseInt(dateParts[1]) - 1;
-    const day = parseInt(dateParts[0]);
-    const hour = parseInt(timeParts[0]);
-    const minute = parseInt(timeParts[1]);
-    const second = parseInt(timeParts[2] || 0);
-    return new Date(year, month, day, hour, minute, second);
-  }
-  return new Date(dateStr);
-}
+
 
 function formatDate(dateStr) {
   const d = parseCustomDate(dateStr);
@@ -1078,7 +1086,7 @@ function renderFinanceTab(container) {
       return;
     }
 
-    // Сортировка с использованием глобальной parseCustomDate
+    // Сортировка с использованием глобальной 
     data.transactions.sort((a, b) => parseCustomDate(b.date) - parseCustomDate(a.date));
 
     let html = '<div class="card"><table style="width:100%; border-collapse: collapse;">';
@@ -1220,33 +1228,120 @@ function renderMoreTab(container) {
 
 // =========================== 10. ДОПОЛНИТЕЛЬНЫЕ РЕНДЕРЫ ===========================
 async function renderClientsManager(container) {
-  // Загружаем список клиентов с сервера
-  const result = await apiCall('/api/clients');
-  if (!result.ok || !Array.isArray(result.data)) {
-    container.innerHTML = '<div class="card alert">Ошибка загрузки клиентов</div>';
-    return;
+  // Загружаем клиентов, если ещё нет
+  if (!cachedClients.length) await fetchClients();
+
+  container.innerHTML = `
+    <div class="card">
+      <h3>👥 Клиенты</h3>
+      <input type="text" id="clientSearchInput" placeholder="🔍 Поиск по имени или телефону..." style="margin-bottom: 12px;">
+      <div id="clientsTableContainer"></div>
+      <button id="newClientBtn">➕ Новый клиент</button>
+    </div>
+  `;
+
+  const searchInput = document.getElementById('clientSearchInput');
+  const tableContainer = document.getElementById('clientsTableContainer');
+
+  function renderFilteredClients() {
+    const searchText = searchInput.value.trim().toLowerCase();
+    let filtered = [...cachedClients];
+
+    if (searchText) {
+      filtered = filtered.filter(c => {
+        const nameMatch = c.name && c.name.toLowerCase().includes(searchText);
+        const phoneMatch = c.phone && c.phone.toLowerCase().includes(searchText);
+        return nameMatch || phoneMatch;
+      });
+    }
+
+    if (filtered.length === 0) {
+      tableContainer.innerHTML = '<p style="padding: 12px; text-align: center;">Клиенты не найдены</p>';
+      return;
+    }
+
+    let html = `<table style="width:100%; border-collapse: collapse;">
+      <thead><tr><th>Имя</th><th>Телефон</th><th>Соц. сети</th><th></th></tr></thead>
+      <tbody>`;
+    filtered.forEach(c => {
+      html += `<tr class="client-row" data-id="${c.id}" style="cursor:pointer;">
+        <td>${escapeHtml(c.name)}</td>
+        <td>${escapeHtml(c.phone || '')}</td>
+        <td>${escapeHtml(c.address || '')}</td>
+        <td><button class="editClientBtn" data-id="${c.id}">✏️</button></td>
+      </td>`;
+    });
+    html += `</tbody></table>`;
+    tableContainer.innerHTML = html;
+
+    // Обработчик клика по строке (открыть модалку с заказами клиента)
+    document.querySelectorAll('.client-row').forEach(row => {
+      row.addEventListener('click', (e) => {
+        if (e.target.classList.contains('editClientBtn')) return;
+        const clientId = parseInt(row.getAttribute('data-id'));
+        showClientOrdersModal(clientId);
+      });
+    });
+    // Обработчики кнопок редактирования
+    document.querySelectorAll('.editClientBtn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = parseInt(btn.getAttribute('data-id'));
+        const client = cachedClients.find(c => c.id === id);
+        showClientForm(client, () => renderClientsManager(container));
+      });
+    });
   }
-  const clients = result.data;
-  let html = `<div class="card"><h3>👥 Клиенты</h3></table><thead>气<th>Имя</th><th>Телефон</th><th>Соц. сети</th><th></th></thead><tbody>`;
-  clients.forEach(c => {
-    html += `<tr>
-      <td>${escapeHtml(c.name)}</td>
-      <td>${escapeHtml(c.phone || '')}</td>
-      <td>${escapeHtml(c.address || '')}</td>
-      <td><button class="editClientBtn" data-id="${c.id}">✏️</button></td>
-    </tr>`;
-  });
-  html += `</tbody></table><button id="newClientBtn">➕ Новый клиент</button></div>`;
-  container.innerHTML = html;
-  
+
+  searchInput.addEventListener('input', renderFilteredClients);
+  renderFilteredClients();
+
   document.getElementById('newClientBtn').onclick = () => showClientForm(null, () => renderClientsManager(container));
-  document.querySelectorAll('.editClientBtn').forEach(btn => {
-    btn.onclick = () => {
-      const id = parseInt(btn.getAttribute('data-id'));
-      const client = clients.find(c => c.id === id);
-      showClientForm(client, () => renderClientsManager(container));
-    };
-  });
+}
+
+  async function showClientOrdersModal(clientId) {
+  const client = cachedClients.find(c => c.id == clientId);
+  if (!client) return showToast('Клиент не найден', true);
+
+  if (!cachedOrders.length) await fetchAllOrders();
+  const clientOrders = cachedOrders
+    .filter(o => o.clientId == clientId)
+    .sort((a, b) => new Date(parseCustomDate(b.created)) - new Date(parseCustomDate(a.created)));
+
+  const modalHtml = `
+    <div id="clientOrdersModal" class="modal" onclick="if(event.target===this) this.remove()">
+      <div class="modal-content" style="max-width: 800px;">
+        <h3>👤 ${escapeHtml(client.name)}</h3>
+        <p><strong>Телефон:</strong> ${escapeHtml(client.phone || '—')}</p>
+        <p><strong>Соц. сети:</strong> ${escapeHtml(client.address || '—')}</p>
+        <hr>
+        <h4>📦 Заказы клиента (${clientOrders.length})</h4>
+        <div style="max-height: 400px; overflow-y: auto;">
+          <table style="width:100%; border-collapse: collapse;">
+            <thead>
+              <tr><th>ID</th><th>Дата создания</th><th>Дата выполнения</th><th>Сумма</th><th>Статус</th></tr>
+            </thead>
+            <tbody>
+              ${clientOrders.map(o => `
+                <tr>
+                  <td>${o.id}</td>
+                  <td>${formatDateForDisplay(o.created)}</td>
+                  <td>${formatDateForDisplay(o.executionDate)}</td>
+                  <td>${o.price} BYN</td>
+                  <td>${escapeHtml(o.status)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+        <div class="modal-buttons">
+          <button id="closeClientOrdersModalBtn">Закрыть</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  document.getElementById('closeClientOrdersModalBtn').onclick = () => document.getElementById('clientOrdersModal').remove();
 }
 
 function showClientForm(client, callback) {
@@ -1420,47 +1515,95 @@ function renderAddIngredientForm(container) {
 }
 
 function renderHistoryOrders(container) {
-  // Загружаем клиентов (уже есть в кэше или через apiCall)
-  (async () => {
-    const result = await apiCall('/api/clients');
-    if (!result.ok || !Array.isArray(result.data)) {
-      container.innerHTML = '<div class="card alert">Ошибка загрузки клиентов</div>';
+  container.innerHTML = `
+    <div class="card">
+      <h3>📜 История всех заказов</h3>
+      <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 16px;">
+        <div>
+          <label>Тип даты:</label>
+          <select id="historyDateType">
+            <option value="created">По дате создания</option>
+            <option value="execution">По дате выполнения</option>
+          </select>
+        </div>
+        <div>
+          <label>С:</label>
+          <input type="date" id="historyStartDate">
+        </div>
+        <div>
+          <label>По:</label>
+          <input type="date" id="historyEndDate">
+        </div>
+        <button id="historyFilterBtn" class="secondary">Показать</button>
+      </div>
+      <div id="historyOrdersTable">Загрузка...</div>
+    </div>
+  `;
+
+  const loadHistory = async () => {
+    if (!cachedOrders.length) await fetchAllOrders();
+    if (!cachedClients.length) await fetchClients();
+
+    const dateType = document.getElementById('historyDateType').value; // 'created' или 'execution'
+    let startDate = document.getElementById('historyStartDate').value;
+    let endDate = document.getElementById('historyEndDate').value;
+    let orders = [...cachedOrders];
+
+    if (startDate && endDate) {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      orders = orders.filter(o => {
+        const dateStr = dateType === 'created' ? o.created : o.executionDate;
+        const d = parseCustomDate(dateStr);
+        return d >= start && d <= end;
+      });
+    }
+
+    // Сортировка по выбранной дате (новые сверху)
+    orders.sort((a, b) => {
+      const da = parseCustomDate(dateType === 'created' ? a.created : a.executionDate);
+      const db = parseCustomDate(dateType === 'created' ? b.created : b.executionDate);
+      return db - da;
+    });
+
+    const tableDiv = document.getElementById('historyOrdersTable');
+    if (orders.length === 0) {
+      tableDiv.innerHTML = '<p>Нет заказов за выбранный период</p>';
       return;
     }
-    const clients = result.data;
-    let html = `<div class="card"><h3>📜 История заказов клиента</h3>
-      <label>Клиент</label>
-      <select id="historyClientSelect"><option value="">-- Выберите --</option>`;
-    clients.forEach(c => {
-      html += `<option value="${c.id}">${escapeHtml(c.name)} (${escapeHtml(c.phone || '')})</option>`;
-    });
-    html += `</select><button id="showHistoryBtn">Показать</button><div id="historyOrdersTable"></div></div>`;
-    container.innerHTML = html;
-    
-    document.getElementById('showHistoryBtn').onclick = async () => {
-      const cid = document.getElementById('historyClientSelect').value;
-      if (!cid) return;
-      // Получаем заказы (используем кэш cachedOrders или загружаем)
-      if (!cachedOrders.length) await fetchAllOrders();
-      const ordersForClient = cachedOrders.filter(o => o.clientId == cid);
-      if (ordersForClient.length === 0) {
-        document.getElementById('historyOrdersTable').innerHTML = '<div class="card">Нет заказов</div>';
-        return;
-      }
-      let tbl = '<table style="width:100%; border-collapse: collapse;"><thead><tr><th>ID</th><th>Дата создания</th><th>Цена</th><th>Статус</th><th>Дата выполнения</th></tr></thead><tbody>';
-      ordersForClient.forEach(o => {
-        tbl += `<tr>
+
+    let html = `<table style="width:100%; border-collapse: collapse;">
+      <thead>
+        <tr><th>ID</th><th>Клиент</th><th>Дата создания</th><th>Дата выполнения</th><th>Сумма</th><th>Статус</th></tr>
+      </thead>
+      <tbody>`;
+    for (const o of orders) {
+      const client = cachedClients.find(c => c.id == o.clientId);
+      html += `
+        <tr>
           <td>${o.id}</td>
-          <td>${new Date(o.created).toLocaleDateString()}</td>
-          <td>${o.price}</td>
-          <td>${o.status}</td>
-          <td>${o.executionDate ? new Date(o.executionDate).toLocaleDateString() : ''}</td>
-        </tr>`;
-      });
-      tbl += '</tbody></table>';
-      document.getElementById('historyOrdersTable').innerHTML = tbl;
-    };
-  })();
+          <td>${client ? escapeHtml(client.name) : 'Неизвестный'}</td>
+          <td>${formatDateForDisplay(o.created)}</td>
+          <td>${formatDateForDisplay(o.executionDate)}</td>
+          <td>${o.price} BYN</td>
+          <td>${escapeHtml(o.status)}</td>
+        </tr>
+      `;
+    }
+    html += `</tbody></table>`;
+    tableDiv.innerHTML = html;
+  };
+
+  // Установка дат по умолчанию (последние 30 дней)
+  const today = new Date();
+  const monthAgo = new Date();
+  monthAgo.setDate(today.getDate() - 30);
+  document.getElementById('historyStartDate').value = monthAgo.toISOString().split('T')[0];
+  document.getElementById('historyEndDate').value = today.toISOString().split('T')[0];
+
+  document.getElementById('historyFilterBtn').onclick = loadHistory;
+  loadHistory();
 }
 
 
