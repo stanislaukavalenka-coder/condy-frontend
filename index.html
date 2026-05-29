@@ -586,8 +586,16 @@ async function loadOrdersForDate(dateStr) {
     else if (o.status === 'оплачен') statusClass = 'paid';
     else if (o.status === 'завершен') statusClass = 'completed';
     else if (o.status === 'отменён') statusClass = 'canceled';
+    
+    // Определяем, является ли клиент новым (у него только один заказ)
+    let isNew = false;
+    if (client && client.id) {
+      const clientOrdersCount = cachedOrders.filter(order => order.clientId == client.id).length;
+      isNew = (clientOrdersCount === 1);
+    }
+    
     html += `<div class="order-card-clickable status-${statusClass}" data-id="${o.id}">
-      <b>#${o.id}</b> — ${client ? escapeHtml(client.name) : 'Неизвестный'}<br>
+      <b>#${o.id}</b> — ${client ? escapeHtml(client.name) : 'Неизвестный'}${isNew ? ' <span class="new-badge" style="background:#f97316; color:white; font-size:0.7rem; padding:2px 6px; border-radius:12px; margin-left:6px;">new</span>' : ''}<br>
       💰 ${o.price} BYN | Статус: ${escapeHtml(o.status)}<br>
       ${o.details ? `📝 ${escapeHtml(o.details)}<br>` : ''}
       ${o.delivery ? `🚚 ${escapeHtml(o.delivery)}<br>` : ''}
