@@ -1364,6 +1364,7 @@ async function showOrderForm() {
   const statuses = ['в работе', 'оплачен', 'завершен', 'отменён'];
   let orderProducts = [];
 
+  // ---------- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ----------
   function calculateTotalAndRowSums() {
     document.querySelectorAll('#orderProductsContainer tbody tr').forEach((row, idx) => {
       if (idx < orderProducts.length) {
@@ -1460,6 +1461,7 @@ async function showOrderForm() {
     });
   }
 
+  // ---------- МОДАЛЬНОЕ ОКНО ----------
   const modalHtml = `
     <div id="orderModal" class="modal" onclick="if(event.target===this) this.remove()">
       <div class="modal-content">
@@ -1522,6 +1524,7 @@ async function showOrderForm() {
     };
   });
 
+  // Поиск клиента по телефону
   const phoneInput = document.getElementById('clientPhone');
   const nameInput = document.getElementById('clientName');
   const msgDiv = document.getElementById('phoneCheckMsg');
@@ -1542,6 +1545,7 @@ async function showOrderForm() {
     }
   });
 
+  // СОХРАНЕНИЕ ЗАКАЗА
   document.getElementById('saveOrderBtn').onclick = async () => {
     let clientName = document.getElementById('clientName').value.trim();
     let clientPhone = document.getElementById('clientPhone').value.trim();
@@ -1563,15 +1567,17 @@ async function showOrderForm() {
       return;
     }
 
-    const totalSpan = document.getElementById('orderPriceDisplay');
-    const totalPrice = parseFloat(totalSpan ? totalSpan.textContent : '0');
+    const totalDisplay = document.getElementById('orderPriceDisplay');
+    const totalPrice = parseFloat(totalDisplay ? totalDisplay.textContent : '0');
     if (isNaN(totalPrice) || totalPrice <= 0) {
       showToast('Некорректная сумма заказа', true);
       return;
     }
 
     showSpinner();
+
     try {
+      // 1. СОЗДАЁМ ИЛИ НАХОДИМ КЛИЕНТА
       let clientId = null;
       if (!cachedClients.length) await fetchClients();
       const existingClient = findClientByPhone(clientPhone);
@@ -1592,10 +1598,13 @@ async function showOrderForm() {
         clientId = createRes.data.id;
       }
 
+      console.log('🔹 clientId для заказа:', clientId, typeof clientId);
+
+      // 2. СОЗДАЁМ ЗАКАЗ
       const orderRes = await apiCall('/api/orders', {
         method: 'POST',
         body: JSON.stringify({
-          clientId: clientId,
+          clientId: Number(clientId),
           price: totalPrice,
           status: finalStatus,
           details: details,
@@ -1606,31 +1615,28 @@ async function showOrderForm() {
       if (!orderRes.ok) throw new Error(orderRes.data.error || 'Ошибка создания заказа');
       const orderId = orderRes.data.orderId;
 
+      // 3. СОХРАНЯЕМ ТОВАРЫ
       for (const prod of orderProducts) {
         let finalProductId = prod.productId;
         let finalPrice = prod.price;
-        if (!finalProductId && prod.customName) {
+        let finalName = prod.customName ? prod.customName : prod.name;
+        if (!finalProductId && finalName) {
           const newProdRes = await apiCall('/api/products', {
             method: 'POST',
             body: JSON.stringify({
               categoryId: 1,
-              name: prod.customName,
+              name: finalName,
               price: finalPrice,
               description: 'Создан автоматически из заказа'
             })
           });
-          if (newProdRes.ok) {
-            finalProductId = newProdRes.data.id;
-            await fetchProducts(true);
-          }
+          if (newProdRes.ok) finalProductId = newProdRes.data.id;
         }
         if (finalProductId) {
           await apiCall('/api/order-products', {
             method: 'POST',
             body: JSON.stringify({ orderId, productId: finalProductId, quantity: prod.quantity, price: finalPrice })
           });
-        } else {
-          console.warn('Товар не сохранён', prod.customName);
         }
       }
 
