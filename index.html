@@ -7,114 +7,300 @@
 <title>CONDY Кондитерский помощник</title>
 <style>
   .toast {
-  position: fixed;
-  bottom: 80px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: #333;
-  color: white;
-  padding: 8px 16px;
-  border-radius: 40px;
-  font-size: 0.85rem;
-  z-index: 3000;
-  opacity: 0;
-  transition: opacity 0.3s;
-  pointer-events: none;
-}
-.toast.show {
-  opacity: 1;
-}
-   /* ========== ОСНОВНЫЕ СТИЛИ (компактная версия) ========== */
-  * { box-sizing: border-box; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
-  body { background: #f5f7fb; margin: 0; padding: 0 0 60px 0; } /* compact: уменьшен нижний отступ */
-  .container { max-width: 700px; margin: 0 auto; background: white; border-radius: 24px; padding: 12px; /* compact: уменьшен padding */ box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 12px; }
-  h1 { font-size: 1.4rem; /* compact: уменьшен */ font-weight: 600; margin: 0 0 2px 0; color: #1e293b; }
-  label { font-weight: 500; display: block; margin-top: 12px; /* compact: уменьшен */ margin-bottom: 4px; font-size: 0.85rem; color: #0f172a; }
-  select, input, textarea { width: 100%; padding: 8px 12px; /* compact: уменьшен */ font-size: 0.9rem; border: 1px solid #cbd5e1; border-radius: 16px; background: white; }
-  button { background: #f97316; color: white; border: none; padding: 8px 14px; /* compact: уменьшен */ font-size: 0.85rem; font-weight: 500; border-radius: 40px; width: 100%; margin-top: 12px; cursor: pointer; }
-  button.secondary { background: #334155; margin-top: 8px; }
-  .card { background: #f8fafc; border-radius: 16px; padding: 12px; /* compact: уменьшен */ margin-top: 12px; overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-  th, td { text-align: left; padding: 6px 4px; /* compact: уменьшен */ border-bottom: 1px solid #e2e8f0; }
-  .amount { text-align: right; }
-  .alert, .success { padding: 8px; font-size: 0.8rem; margin-top: 8px; }
-
-  
-  /* Спиннер – без изменений */
-  .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid rgba(0,0,0,0.1); border-radius: 50%; border-top-color: #f97316; animation: spin 0.6s linear infinite; margin-left: 6px; vertical-align: middle; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .loading-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.8); display: flex; justify-content: center; align-items: center; z-index: 3000; }
-  .loading-overlay .spinner { width: 32px; height: 32px; border-width: 3px; }
-  
-  /* Нижняя навигация – компактнее */
-  .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: white; display: flex; justify-content: space-around; padding: 4px 8px; /* compact: уменьшен */ box-shadow: 0 -2px 8px rgba(0,0,0,0.08); border-top: 1px solid #e2e8f0; z-index: 1000; max-width: 700px; margin: 0 auto; border-radius: 20px 20px 0 0; }
-  .nav-item { display: flex; flex-direction: column; align-items: center; background: none; border: none; font-size: 11px; /* compact: уменьшен */ color: #64748b; cursor: pointer; width: 20%; text-align: center; padding: 2px 0; }
-  .nav-item.active { color: #f97316; }
-  .nav-item span:first-child { font-size: 22px; /* compact: уменьшен */ margin-bottom: 2px; }
-  
-    /* Календарь – сетка 7 колонок */
-.calendar-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
-  text-align: center;
-  margin: 8px 0;
-}
-.calendar-day {
-  cursor: pointer;
-  padding: 6px 2px;
-  background: #f1f5f9;
-  border-radius: 12px;
-  transition: 0.2s;
-  font-size: 0.85rem;
-  line-height: 1.2;
-  min-height: 40px; /* можно задать, чтобы высота была одинаковой */
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-.calendar-day.today {
-  background: #f97316;
-  color: white;
-}
-.calendar-day.selected {
-  background: #3b82f6;
-  color: white;
-}
-.calendar-sum {
-  font-size: 0.65rem;
-  font-weight: bold;
-  color: #f97316;
-  margin-top: 2px;
-  height: 18px;
-  line-height: 18px;
-}
-
-  
-  /* Плавающая кнопка – чуть меньше */
-  .fab { position: fixed; bottom: 70px; right: 16px; width: 48px; height: 48px; background: #f97316; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 3px 10px rgba(0,0,0,0.2); cursor: pointer; z-index: 1001; transition: 0.2s; }
-  .fab:hover { transform: scale(1.05); background: #ea580c; }
-  .fab span { font-size: 26px; color: white; }
-  
-  /* Карточка заказа – компактнее */
-  .order-card-clickable { margin-bottom: 6px; border-radius: 14px; padding: 8px 10px; /* compact: уменьшен */ cursor: pointer; transition: 0.2s; border-left: 3px solid; font-size: 0.85rem; }
-  .order-card-clickable:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
-  .order-card-clickable.status-work { background: #fff7ed; border-left-color: #f97316; }
-  .order-card-clickable.status-paid { background: #dcfce7; border-left-color: #22c55e; }
-  .order-card-clickable.status-completed { background: #bbf7d0; border-left-color: #16a34a; }
-  .order-card-clickable.status-canceled { background: #fee2e2; border-left-color: #ef4444; }
-  
-  /* Кнопки статуса – компактнее */
-  .status-group { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
-  .status-btn { background: #e2e8f0; color: #1e293b; padding: 4px 8px; border-radius: 30px; font-size: 0.75rem; font-weight: 500; border: none; cursor: pointer; flex: 1; text-align: center; margin: 0; }
-  .status-btn.active { background: #f97316; color: white; }
-
-  .order-card-clickable {
-  touch-action: manipulation;
-  cursor: pointer;
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #333;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 40px;
+    font-size: 0.85rem;
+    z-index: 3000;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
   }
-  
-    /* Модальное окно (исправленное) */
+  .toast.show {
+    opacity: 1;
+  }
+
+  /* ========== ОСНОВНЫЕ СТИЛИ (компактная версия) ========== */
+  * {
+    box-sizing: border-box;
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  }
+  body {
+    background: #f5f7fb;
+    margin: 0;
+    padding: 0 0 60px 0;
+  }
+  .container {
+    max-width: 700px;
+    margin: 0 auto;
+    background: white;
+    border-radius: 24px;
+    padding: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    margin-bottom: 12px;
+  }
+  h1 {
+    font-size: 1.4rem;
+    font-weight: 600;
+    margin: 0 0 2px 0;
+    color: #1e293b;
+  }
+  label {
+    font-weight: 500;
+    display: block;
+    margin-top: 12px;
+    margin-bottom: 4px;
+    font-size: 0.85rem;
+    color: #0f172a;
+  }
+  select, input, textarea {
+    width: 100%;
+    padding: 8px 12px;
+    font-size: 0.9rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 16px;
+    background: white;
+  }
+  button {
+    background: #f97316;
+    color: white;
+    border: none;
+    padding: 8px 14px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    border-radius: 40px;
+    width: 100%;
+    margin-top: 12px;
+    cursor: pointer;
+  }
+  button.secondary {
+    background: #334155;
+    margin-top: 8px;
+  }
+  .card {
+    background: #f8fafc;
+    border-radius: 16px;
+    padding: 12px;
+    margin-top: 12px;
+    overflow-x: auto;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 6px 4px;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .amount {
+    text-align: right;
+  }
+  .alert, .success {
+    padding: 8px;
+    font-size: 0.8rem;
+    margin-top: 8px;
+  }
+
+  /* Спиннер */
+  .spinner {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(0,0,0,0.1);
+    border-radius: 50%;
+    border-top-color: #f97316;
+    animation: spin 0.6s linear infinite;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  .loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255,255,255,0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 3000;
+  }
+  .loading-overlay .spinner {
+    width: 32px;
+    height: 32px;
+    border-width: 3px;
+  }
+
+  /* Нижняя навигация */
+  .bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: white;
+    display: flex;
+    justify-content: space-around;
+    padding: 4px 8px;
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.08);
+    border-top: 1px solid #e2e8f0;
+    z-index: 1000;
+    max-width: 700px;
+    margin: 0 auto;
+    border-radius: 20px 20px 0 0;
+  }
+  .nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: none;
+    border: none;
+    font-size: 11px;
+    color: #64748b;
+    cursor: pointer;
+    width: 20%;
+    text-align: center;
+    padding: 2px 0;
+  }
+  .nav-item.active {
+    color: #f97316;
+  }
+  .nav-item span:first-child {
+    font-size: 22px;
+    margin-bottom: 2px;
+  }
+
+  /* Календарь */
+  .calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    text-align: center;
+    margin: 8px 0;
+  }
+  .calendar-day {
+    cursor: pointer;
+    padding: 6px 2px;
+    background: #f1f5f9;
+    border-radius: 12px;
+    transition: 0.2s;
+    font-size: 0.85rem;
+    line-height: 1.2;
+    min-height: 40px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .calendar-day.today {
+    background: #f97316;
+    color: white;
+  }
+  .calendar-day.selected {
+    background: #3b82f6;
+    color: white;
+  }
+  .calendar-sum {
+    font-size: 0.65rem;
+    font-weight: bold;
+    color: #f97316;
+    margin-top: 2px;
+    height: 18px;
+    line-height: 18px;
+  }
+
+  /* Плавающая кнопка */
+  .fab {
+    position: fixed;
+    bottom: 70px;
+    right: 16px;
+    width: 48px;
+    height: 48px;
+    background: #f97316;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+    cursor: pointer;
+    z-index: 1001;
+    transition: 0.2s;
+  }
+  .fab:hover {
+    transform: scale(1.05);
+    background: #ea580c;
+  }
+  .fab span {
+    font-size: 26px;
+    color: white;
+  }
+
+  /* Карточка заказа */
+  .order-card-clickable {
+    margin-bottom: 6px;
+    border-radius: 14px;
+    padding: 8px 10px;
+    cursor: pointer;
+    transition: 0.2s;
+    border-left: 3px solid;
+    font-size: 0.85rem;
+    touch-action: manipulation;
+  }
+  .order-card-clickable:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  }
+  .order-card-clickable.status-work {
+    background: #fff7ed;
+    border-left-color: #f97316;
+  }
+  .order-card-clickable.status-paid {
+    background: #dcfce7;
+    border-left-color: #22c55e;
+  }
+  .order-card-clickable.status-completed {
+    background: #bbf7d0;
+    border-left-color: #16a34a;
+  }
+  .order-card-clickable.status-canceled {
+    background: #fee2e2;
+    border-left-color: #ef4444;
+  }
+
+  /* Кнопки статуса */
+  .status-group {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin: 8px 0;
+  }
+  .status-btn {
+    background: #e2e8f0;
+    color: #1e293b;
+    padding: 4px 8px;
+    border-radius: 30px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    flex: 1;
+    text-align: center;
+    margin: 0;
+  }
+  .status-btn.active {
+    background: #f97316;
+    color: white;
+  }
+
+  /* Модальное окно */
   .modal {
     position: fixed;
     top: 0;
@@ -145,77 +331,150 @@
     flex: 1;
     margin-top: 0;
   }
-  /* Стили для компактной таблицы товаров */
-.products-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.8rem;
-}
-.products-table th,
-.products-table td {
-  padding: 4px 2px;
-  border-bottom: 1px solid #e2e8f0;
-  vertical-align: middle;
-}
-.products-table input {
-  width: 100%;
-  padding: 4px;
-  font-size: 0.75rem;
-  box-sizing: border-box;
-}
-.products-table .product-name {
-  min-width: 120px;
-}
-.products-table .product-quantity,
-.products-table .product-price {
-  width: 70px;
-  text-align: center;
-}
-.products-table .product-remove {
-  width: 30px;
-  text-align: center;
-}
-.product-remove button {
-  background: none;
-  border: none;
-  color: #ef4444;
-  font-size: 1.2rem;
-  cursor: pointer;
-  padding: 0;
-  margin: 0;
-  width: auto;
-}
-.add-product-btn {
-  margin-top: 8px;
-  font-size: 0.75rem;
-  padding: 4px 8px;
-}
 
+  /* Таблица товаров (компактная) */
+  .products-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+  }
+  .products-table th,
+  .products-table td {
+    padding: 4px 2px;
+    border-bottom: 1px solid #e2e8f0;
+    vertical-align: middle;
+  }
+  .products-table input {
+    width: 100%;
+    padding: 4px;
+    font-size: 0.75rem;
+    box-sizing: border-box;
+  }
+  .products-table .product-remove {
+    width: 30px;
+    text-align: center;
+  }
+  .product-remove button {
+    background: none;
+    border: none;
+    color: #ef4444;
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 0;
+    margin: 0;
+    width: auto;
+  }
+  .add-row {
+    background: #f97316;
+    color: white;
+    border: none;
+    padding: 4px 8px;
+    font-size: 0.75rem;
+    border-radius: 20px;
+    cursor: pointer;
+    width: auto;
+  }
 
-  /* Выезжающее меню – без изменений (можно позже) */
-  .menu-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1500; display: none; }
-  .slide-menu { position: fixed; top: 0; right: -280px; width: 260px; bottom: 60px; background: white; z-index: 1501; transition: right 0.3s ease; padding: 16px; box-shadow: -2px 0 10px rgba(0,0,0,0.1); border-radius: 20px 0 0 20px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
-  .slide-menu.open { right: 0; }
-  .slide-menu button { margin-top: 0; padding: 8px 12px; font-size: 0.85rem; }
-  
-  /* Адаптация для планшетов и маленьких экранов – тоже компактнее */
+  /* Выезжающее меню */
+  .menu-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 1500;
+    display: none;
+  }
+  .slide-menu {
+    position: fixed;
+    top: 0;
+    right: -280px;
+    width: 260px;
+    bottom: 60px;
+    background: white;
+    z-index: 1501;
+    transition: right 0.3s ease;
+    padding: 16px;
+    box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+    border-radius: 20px 0 0 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow-y: auto;
+  }
+  .slide-menu.open {
+    right: 0;
+  }
+  .slide-menu button {
+    margin-top: 0;
+    padding: 8px 12px;
+    font-size: 0.85rem;
+  }
+
+  /* Адаптация для мобильных устройств */
   @media (max-width: 600px) {
-    .container { padding: 8px; margin: 6px; border-radius: 18px; }
-    h1 { font-size: 1.2rem; }
-    button { padding: 6px 12px; font-size: 0.8rem; }
-    .calendar-day { padding: 4px 1px; font-size: 0.75rem; }
-    .calendar-grid { gap: 2px; }
-    .order-card-clickable { padding: 6px; font-size: 0.8rem; }
-    .fab { bottom: 65px; right: 14px; width: 44px; height: 44px; }
-    .fab span { font-size: 22px; }
+    .container {
+      padding: 8px;
+      margin: 6px;
+      border-radius: 18px;
+    }
+    h1 {
+      font-size: 1.2rem;
+    }
+    button {
+      padding: 6px 12px;
+      font-size: 0.8rem;
+    }
+    .calendar-day {
+      padding: 4px 1px;
+      font-size: 0.75rem;
+    }
+    .calendar-grid {
+      gap: 2px;
+    }
+    .order-card-clickable {
+      padding: 6px;
+      font-size: 0.8rem;
+    }
+    .fab {
+      bottom: 65px;
+      right: 14px;
+      width: 44px;
+      height: 44px;
+    }
+    .fab span {
+      font-size: 22px;
+    }
+    .products-table th,
+    .products-table td {
+      padding: 2px 1px;
+    }
+    .products-table input {
+      font-size: 0.7rem;
+    }
+    .add-row {
+      font-size: 0.7rem;
+      padding: 2px 6px;
+    }
   }
-  
+
   @media (max-width: 380px) {
-    .calendar-day { font-size: 0.65rem; padding: 3px 1px; }
-    .nav-item span:first-child { font-size: 18px; }
-    .nav-item { font-size: 9px; }
+    .calendar-day {
+      font-size: 0.65rem;
+      padding: 3px 1px;
+    }
+    .nav-item span:first-child {
+      font-size: 18px;
+    }
+    .nav-item {
+      font-size: 9px;
+    }
+    .products-table .product-quantity,
+    .products-table .product-price {
+      width: 50px;
+    }
   }
-  
 </style>
 </head>
 
@@ -676,14 +935,131 @@ async function loadOrdersForDate(dateStr) {
   html += `</div>`;
   container.innerHTML = html;
 }
-function showOrderDetailsModal(order, client) {
+async function showOrderDetailsModal(order, client) {
   console.log('showOrderDetailsModal вызвана', order, client);
   let currentStatus = order.status;
-  // Поля для клиента
+
+  // Данные товаров заказа (загрузим позже)
+  let orderProducts = []; // { productId, name, price, quantity, customName }
+
+  // Загрузка товаров заказа
+  async function loadOrderProducts() {
+    const res = await apiCall(`/api/order-products/${order.id}`);
+    if (res.ok && Array.isArray(res.data)) {
+      for (const op of res.data) {
+        const product = cachedProducts.find(p => p.id === op.productId);
+        orderProducts.push({
+          productId: op.productId,
+          name: product ? product.name : null,
+          price: op.price,
+          quantity: op.quantity,
+          customName: product ? null : (op.productId ? `Товар ID ${op.productId}` : '')
+        });
+      }
+    }
+    renderProductRows();
+  }
+
+  // Отрисовка таблицы товаров
+  function renderProductRows() {
+    const container = document.getElementById('editOrderProductsContainer');
+    if (!container) return;
+    if (orderProducts.length === 0) {
+      container.innerHTML = '<div class="products-table" style="padding:8px; text-align:center;">Нет товаров</div>';
+      return;
+    }
+    let html = `
+      <table class="products-table">
+        <thead><tr><th>Наименование</th><th style="width:80px">Кол-во (шт)</th><th style="width:100px">Цена (BYN)</th><th style="width:80px">Сумма</th><th style="width:30px"></th></tr></thead>
+        <tbody>
+    `;
+    orderProducts.forEach((p, idx) => {
+      const displayName = p.customName ? p.customName : (p.name || '');
+      const sum = (p.price || 0) * (p.quantity || 1);
+      html += `
+        <tr data-idx="${idx}">
+          <td><input type="text" class="edit-product-name" value="${escapeHtml(displayName)}" placeholder="Название товара"></td>
+          <td><input type="number" class="edit-product-quantity" value="${p.quantity}" min="1" step="1"></td>
+          <td><input type="number" class="edit-product-price" value="${p.price}" step="0.01" min="0"></td>
+          <td class="edit-product-sum">${sum.toFixed(2)}</td>
+          <td class="product-remove"><button class="remove-edit-product" data-idx="${idx}">✖</button></td>
+        </tr>
+      `;
+    });
+    html += `</tbody></table>`;
+    container.innerHTML = html;
+
+    // Обработчики для строк товаров
+    document.querySelectorAll('.edit-product-name').forEach((input, idx) => {
+      input.addEventListener('change', async (e) => {
+        const newName = e.target.value.trim();
+        if (!newName) return;
+        if (!cachedProducts.length) await fetchProducts();
+        const found = cachedProducts.find(p => p.name.toLowerCase() === newName.toLowerCase());
+        if (found) {
+          orderProducts[idx].productId = found.id;
+          orderProducts[idx].name = found.name;
+          orderProducts[idx].price = found.price;
+          orderProducts[idx].customName = null;
+          const priceInput = e.target.closest('tr').querySelector('.edit-product-price');
+          if (priceInput) priceInput.value = found.price;
+          e.target.value = found.name;
+        } else {
+          orderProducts[idx].productId = null;
+          orderProducts[idx].name = null;
+          orderProducts[idx].customName = newName;
+        }
+        calculateTotalAndRowSums();
+      });
+    });
+    document.querySelectorAll('.edit-product-quantity').forEach((input, idx) => {
+      input.addEventListener('input', (e) => {
+        let qty = parseInt(e.target.value);
+        if (isNaN(qty) || qty < 1) qty = 1;
+        orderProducts[idx].quantity = qty;
+        calculateTotalAndRowSums();
+      });
+    });
+    document.querySelectorAll('.edit-product-price').forEach((input, idx) => {
+      input.addEventListener('input', (e) => {
+        let price = parseFloat(e.target.value);
+        if (isNaN(price)) price = 0;
+        orderProducts[idx].price = price;
+        calculateTotalAndRowSums();
+      });
+    });
+    document.querySelectorAll('.remove-edit-product').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.dataset.idx);
+        orderProducts.splice(idx, 1);
+        renderProductRows();
+        calculateTotalAndRowSums();
+      });
+    });
+    calculateTotalAndRowSums();
+  }
+
+  // Пересчёт сумм в строках и общей суммы
+  function calculateTotalAndRowSums() {
+    document.querySelectorAll('#editOrderProductsContainer tbody tr').forEach((row, idx) => {
+      if (idx < orderProducts.length) {
+        const qty = orderProducts[idx].quantity || 1;
+        const price = orderProducts[idx].price || 0;
+        const sum = qty * price;
+        const sumCell = row.querySelector('.edit-product-sum');
+        if (sumCell) sumCell.textContent = sum.toFixed(2);
+      }
+    });
+    const total = orderProducts.reduce((s, p) => s + (p.price * p.quantity), 0);
+    const totalDisplay = document.getElementById('editOrderPriceDisplay');
+    if (totalDisplay) totalDisplay.textContent = total.toFixed(2);
+  }
+
+  // HTML модального окна (с блоком товаров и итогом)
   const modalHtml = `
     <div id="editOrderModal" class="modal" onclick="if(event.target===this) this.remove()">
-      <div class="modal-content">
-        <h3>✏️ #${order.id}</h3>
+      <div class="modal-content" style="max-width: 700px;">
+        <h3>✏️ Редактирование заказа #${order.id}</h3>
         <h4>Данные клиента</h4>
         <label>Имя клиента</label>
         <input type="text" id="editClientName" value="${escapeHtml(client ? client.name : '')}" placeholder="Аноним">
@@ -696,8 +1072,15 @@ function showOrderDetailsModal(order, client) {
         <div class="status-group" id="statusGroup">
           ${['в работе','оплачен','завершен','отменён'].map(s => `<button class="status-btn ${s === currentStatus ? 'active' : ''}" data-status="${s}">${s}</button>`).join('')}
         </div>
-        <label>💰 Цена (BYN)</label>
-        <input type="number" id="editPrice" step="0.01" value="${order.price}">
+        <h4>🛒 Товары в заказе</h4>
+        <div id="editOrderProductsContainer"></div>
+        <button type="button" id="addEditProductRowBtn" class="add-row" style="margin-top:4px;">➕ Добавить товар</button>
+
+        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 12px;">
+          <label style="font-weight: normal;">💰 Итого (BYN)</label>
+          <span id="editOrderPriceDisplay" style="font-size: 1.4rem; font-weight: bold; color: #f97316;">0.00</span>
+        </div>
+
         <label>📝 Подробности</label>
         <textarea id="editDetails" rows="2">${escapeHtml(order.details || '')}</textarea>
         <label>🚚 Доставка</label>
@@ -717,21 +1100,36 @@ function showOrderDetailsModal(order, client) {
   `;
   document.body.insertAdjacentHTML('beforeend', modalHtml);
 
-  // Показать количество заказов клиента (используем кэш cachedOrders)
+  // Показать количество заказов клиента и кнопку истории
   if (client && client.id) {
     const ordersCount = cachedOrders.filter(o => o.clientId == client.id).length;
     const infoSpan = document.getElementById('clientOrdersInfo');
     if (infoSpan) {
-      infoSpan.innerHTML = ordersCount > 0 
-  ? `<span style="font-size:0.8rem; color:#f97316;">📜 Всего заказов: ${ordersCount} 
-     <button id="showClientOrdersBtn" class="secondary" style="width:auto; padding:2px 8px; margin-left:8px;">📋 История</button></span>`
-  : `<span style="font-size:0.8rem;">📜 Первый заказ </span>`;
+      infoSpan.innerHTML = ordersCount > 0
+        ? `<span style="font-size:0.8rem; color:#f97316;">📜 Всего заказов: ${ordersCount}
+           <button id="showClientOrdersBtn" class="secondary" style="width:auto; padding:2px 8px; margin-left:8px;">📋 История</button></span>`
+        : `<span style="font-size:0.8rem;">📜 Первый заказ</span>`;
     }
+    const historyBtn = document.getElementById('showClientOrdersBtn');
+    if (historyBtn) historyBtn.onclick = () => showClientOrdersModal(client.id);
   }
-const historyBtn = document.getElementById('showClientOrdersBtn');
-if (historyBtn && client && client.id) {
-  historyBtn.onclick = () => showClientOrdersModal(client.id);
-}
+
+  // Загрузить товары заказа
+  if (!cachedProducts.length) await fetchProducts();
+  await loadOrderProducts();
+
+  // Кнопка добавления товара
+  document.getElementById('addEditProductRowBtn').onclick = () => {
+    orderProducts.push({
+      productId: null,
+      name: null,
+      price: 0,
+      quantity: 1,
+      customName: ''
+    });
+    renderProductRows();
+  };
+
   // Обработчики статуса
   const statusBtns = document.querySelectorAll('#statusGroup .status-btn');
   statusBtns.forEach(btn => {
@@ -752,11 +1150,9 @@ if (historyBtn && client && client.id) {
         sessionStorage.removeItem('cachedOrders');
         cachedOrders = [];
         renderCalendar();
-        // Убираем лишний вызов loadOrdersForDate, так как renderCalendar уже вызывает его
         order.status = newStatus;
       } else {
         showToast(result.data.error || 'Ошибка обновления статуса', true);
-        // восстанавливаем подсветку
         statusBtns.forEach(b => {
           if (b.getAttribute('data-status') === currentStatus) b.classList.add('active');
           else b.classList.remove('active');
@@ -765,65 +1161,115 @@ if (historyBtn && client && client.id) {
     };
   });
 
-  // Сохранение всех полей (клиент + заказ) – отправляем данные клиента в запросе обновления заказа
-document.getElementById('saveOrderEditBtn').onclick = async () => {
-  let newClientName = document.getElementById('editClientName').value.trim();
-  let newClientPhone = document.getElementById('editClientPhone').value.trim();
-  let newClientAddress = document.getElementById('editClientAddress').value.trim();
+  // Сохранение изменений (клиент, заказ, товары)
+  document.getElementById('saveOrderEditBtn').onclick = async () => {
+    let newClientName = document.getElementById('editClientName').value.trim();
+    let newClientPhone = document.getElementById('editClientPhone').value.trim();
+    let newClientAddress = document.getElementById('editClientAddress').value.trim();
+    const newDetails = document.getElementById('editDetails').value;
+    const newDelivery = document.getElementById('editDelivery').value;
+    const newDate = document.getElementById('editExecutionDate').value;
+    const newStatus = currentStatus;
 
-  const newPrice = parseFloat(document.getElementById('editPrice').value);
-  const newDetails = document.getElementById('editDetails').value;
-  const newDelivery = document.getElementById('editDelivery').value;
-  const newDate = document.getElementById('editExecutionDate').value;
-  const newStatus = currentStatus;
+    const totalDisplay = document.getElementById('editOrderPriceDisplay');
+    const newPrice = parseFloat(totalDisplay ? totalDisplay.textContent : '0');
 
-  if (isNaN(newPrice)) { showToast('Цена должна быть числом', true); return; }
-  if (!newDate) { showToast('Укажите дату выполнения', true); return; }
+    if (isNaN(newPrice) || newPrice <= 0) {
+      showToast('Некорректная сумма заказа', true);
+      return;
+    }
+    if (!newDate) {
+      showToast('Укажите дату выполнения', true);
+      return;
+    }
 
-  showSpinner();
+    showSpinner();
 
-  try {
-    // ЛОГИРОВАНИЕ ПЕРЕД ОТПРАВКОЙ
-    console.log('📤 Отправляем данные клиента:', {
-      clientName: newClientName,
-      clientPhone: newClientPhone,
-      clientAddress: newClientAddress,
-      price: newPrice,
-      status: newStatus,
-      executionDate: newDate
-    });
+    try {
+      // 1. Обновить клиента (найти или создать)
+      let clientId = null;
+      if (!cachedClients.length) await fetchClients();
+      const findPhone = (phone) => {
+        const norm = phone.replace(/[^0-9+]/g, '');
+        return cachedClients.find(c => c.phone && c.phone.replace(/[^0-9+]/g, '') === norm);
+      };
+      const existingClient = findPhone(newClientPhone);
+      if (existingClient) {
+        clientId = existingClient.id;
+        if (existingClient.name !== newClientName || existingClient.address !== newClientAddress) {
+          await apiCall(`/api/clients/${existingClient.id}`, {
+            method: 'PUT',
+            body: JSON.stringify({ name: newClientName, phone: newClientPhone, address: newClientAddress })
+          });
+        }
+      } else {
+        const createRes = await apiCall('/api/clients', {
+          method: 'POST',
+          body: JSON.stringify({ name: newClientName, phone: newClientPhone, address: newClientAddress })
+        });
+        if (!createRes.ok) throw new Error(createRes.data.error || 'Ошибка создания клиента');
+        clientId = createRes.data.id;
+      }
 
-    const updateOrderRes = await apiCall(`/api/orders/${order.id}`, {
-      method: 'PUT',
-      body: JSON.stringify({
-        clientName: newClientName,
-        clientPhone: newClientPhone,
-        clientAddress: newClientAddress,
-        price: newPrice,
-        details: newDetails,
-        delivery: newDelivery,
-        executionDate: newDate,
-        status: newStatus
-      })
-    });
+      // 2. Обновить заказ (основные поля)
+      const updateOrderRes = await apiCall(`/api/orders/${order.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          clientId: clientId,
+          price: newPrice,
+          details: newDetails,
+          delivery: newDelivery,
+          executionDate: newDate,
+          status: newStatus
+        })
+      });
+      if (!updateOrderRes.ok) throw new Error(updateOrderRes.data.error || 'Ошибка обновления заказа');
 
-    console.log('📥 Ответ сервера:', updateOrderRes);
+      // 3. Обновить товары заказа: удалить старые связи, добавить новые
+      await apiCall(`/api/order-products/${order.id}`, { method: 'DELETE' });
+      for (const prod of orderProducts) {
+        let finalProductId = prod.productId;
+        let finalPrice = prod.price;
+        if (!finalProductId && prod.customName) {
+          // Попытка создать новый товар (если права позволяют)
+          const newProdRes = await apiCall('/api/products', {
+            method: 'POST',
+            body: JSON.stringify({
+              categoryId: 1, // дефолтная категория
+              name: prod.customName,
+              price: prod.price,
+              description: 'Создан автоматически из заказа'
+            })
+          });
+          if (newProdRes.ok) {
+            finalProductId = newProdRes.data.id;
+            await fetchProducts(true); // обновить кэш
+          } else {
+            console.warn('Не удалось создать товар', prod.customName);
+            continue;
+          }
+        }
+        if (finalProductId) {
+          await apiCall('/api/order-products', {
+            method: 'POST',
+            body: JSON.stringify({ orderId: order.id, productId: finalProductId, quantity: prod.quantity, price: finalPrice })
+          });
+        }
+      }
 
-    if (!updateOrderRes.ok) throw new Error(updateOrderRes.data.error || 'Ошибка обновления заказа');
-
-    showToast('Заказ обновлён');
-    document.getElementById('editOrderModal').remove();
-    sessionStorage.removeItem('cachedOrders');
-    sessionStorage.removeItem('cachedClients');
-    cachedOrders = [];
-    cachedClients = [];
-    renderCalendar();
-  } catch (err) {
-    showToast(err.message, true);
-  } finally {
-    hideSpinner();
-  }
-};
+      showToast('Заказ обновлён');
+      document.getElementById('editOrderModal').remove();
+      sessionStorage.removeItem('cachedOrders');
+      sessionStorage.removeItem('cachedClients');
+      cachedOrders = [];
+      cachedClients = [];
+      renderCalendar();
+    } catch (err) {
+      showToast(err.message, true);
+    } finally {
+      hideSpinner();
+    }
+  };
 
   // Удаление заказа
   document.getElementById('deleteOrderBtn').onclick = async () => {
@@ -844,7 +1290,7 @@ document.getElementById('saveOrderEditBtn').onclick = async () => {
   };
 
   document.getElementById('closeEditModalBtn').onclick = () => document.getElementById('editOrderModal').remove();
-  
+
   // История изменений (заглушка)
   document.getElementById('showHistoryBtn').onclick = () => {
     const histContainer = document.getElementById('orderHistoryContainer');
@@ -856,7 +1302,6 @@ document.getElementById('saveOrderEditBtn').onclick = async () => {
     }
   };
 }
-
 async function showClientOrdersModal(clientId) {
   const client = cachedClients.find(c => c.id == clientId);
   if (!client) return showToast('Клиент не найден', true);
