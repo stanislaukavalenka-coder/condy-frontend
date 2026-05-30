@@ -1602,16 +1602,18 @@ async function showOrderForm() {
 
       // 2. СОЗДАЁМ ЗАКАЗ
       const orderRes = await apiCall('/api/orders', {
-        method: 'POST',
-        body: JSON.stringify({
-          clientId: Number(clientId),
-          price: totalPrice,
-          status: finalStatus,
-          details: details,
-          delivery: delivery,
-          executionDate: date
-        })
-      });
+  method: 'POST',
+  body: JSON.stringify({
+    clientName: clientName,     // вместо clientId
+    clientPhone: clientPhone,   // вместо clientId
+    clientAddress: clientSocial,// вместо clientId
+    price: totalPrice,
+    status: finalStatus,
+    details: details,
+    delivery: delivery,
+    executionDate: date
+  })
+});
       if (!orderRes.ok) throw new Error(orderRes.data.error || 'Ошибка создания заказа');
       const orderId = orderRes.data.orderId;
 
