@@ -1001,11 +1001,7 @@ function calculateTotalAndRowSums() {
   const priceField = document.getElementById('orderPrice');
   if (priceField) priceField.value = total.toFixed(2);
 }
-  function calculateTotal() {
-    const total = orderProducts.reduce((sum, p) => sum + (p.price * p.quantity), 0);
-    const priceField = document.getElementById('orderPrice');
-    if (priceField) priceField.value = total.toFixed(2);
-  }
+ 
 
   // HTML модального окна (добавляем блок товаров)
   const modalHtml = `
