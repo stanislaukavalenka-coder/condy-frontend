@@ -1358,16 +1358,13 @@ async function showClientOrdersModal(clientId) {
 
 
 async function showOrderForm() {
-  // Загружаем товары, если ещё нет
   if (!cachedProducts.length) await fetchProducts();
 
   let selectedStatus = 'в работе';
   const statuses = ['в работе', 'оплачен', 'завершен', 'отменён'];
-  let orderProducts = []; // { productId, name, price, quantity, customName }
+  let orderProducts = [];
 
-  // Функция пересчёта сумм
   function calculateTotalAndRowSums() {
-    // Обновляем суммы в строках
     document.querySelectorAll('#orderProductsContainer tbody tr').forEach((row, idx) => {
       if (idx < orderProducts.length) {
         const qty = orderProducts[idx].quantity || 1;
@@ -1377,13 +1374,11 @@ async function showOrderForm() {
         if (sumCell) sumCell.textContent = sum.toFixed(2);
       }
     });
-    // Общая сумма
     const total = orderProducts.reduce((s, p) => s + (p.price * p.quantity), 0);
     const totalDisplay = document.getElementById('orderPriceDisplay');
     if (totalDisplay) totalDisplay.textContent = total.toFixed(2);
   }
 
-  // Отрисовка таблицы товаров
   function renderProductRows() {
     const container = document.getElementById('orderProductsContainer');
     if (!container) return;
@@ -1391,13 +1386,11 @@ async function showOrderForm() {
       container.innerHTML = '<div class="products-table" style="padding:8px; text-align:center;">Нет товаров</div>';
       return;
     }
-
     let html = `
       <table class="products-table">
         <thead><tr><th>Наименование</th><th style="width:80px">Кол-во (шт)</th><th style="width:100px">Цена (BYN)</th><th style="width:80px">Сумма</th><th style="width:30px"></th></tr></thead>
         <tbody>
     `;
-
     orderProducts.forEach((p, idx) => {
       const displayName = p.customName ? p.customName : (p.name || '');
       const sum = (p.price || 0) * (p.quantity || 1);
@@ -1420,7 +1413,7 @@ async function showOrderForm() {
     html += `</tbody></table>`;
     container.innerHTML = html;
 
-    // Обработчики для названия товара
+    // Обработчики
     document.querySelectorAll('.product-name').forEach((input, idx) => {
       input.addEventListener('change', async (e) => {
         const selectedName = e.target.value.trim();
@@ -1441,8 +1434,6 @@ async function showOrderForm() {
         calculateTotalAndRowSums();
       });
     });
-
-    // Обработчики для количества
     document.querySelectorAll('.product-quantity').forEach((input, idx) => {
       input.addEventListener('input', (e) => {
         let qty = parseInt(e.target.value);
@@ -1451,8 +1442,6 @@ async function showOrderForm() {
         calculateTotalAndRowSums();
       });
     });
-
-    // Обработчики для цены
     document.querySelectorAll('.product-price').forEach((input, idx) => {
       input.addEventListener('input', (e) => {
         let price = parseFloat(e.target.value);
@@ -1461,8 +1450,6 @@ async function showOrderForm() {
         calculateTotalAndRowSums();
       });
     });
-
-    // Обработчики удаления
     document.querySelectorAll('.remove-product').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const idx = parseInt(btn.dataset.idx);
@@ -1473,7 +1460,6 @@ async function showOrderForm() {
     });
   }
 
-  // HTML модального окна
   const modalHtml = `
     <div id="orderModal" class="modal" onclick="if(event.target===this) this.remove()">
       <div class="modal-content">
@@ -1513,10 +1499,8 @@ async function showOrderForm() {
   `;
   document.body.insertAdjacentHTML('beforeend', modalHtml);
 
-  // Отрисовка пустого списка товаров
   renderProductRows();
 
-  // Кнопка добавления товара
   document.getElementById('addProductRowBtn').onclick = () => {
     orderProducts.push({
       productId: null,
@@ -1529,7 +1513,6 @@ async function showOrderForm() {
     calculateTotalAndRowSums();
   };
 
-  // Обработчики выбора статуса
   const statusBtns = document.querySelectorAll('#newOrderStatusGroup .status-btn');
   statusBtns.forEach(btn => {
     btn.onclick = () => {
@@ -1539,7 +1522,6 @@ async function showOrderForm() {
     };
   });
 
-  // Поиск клиента по телефону (подсказка)
   const phoneInput = document.getElementById('clientPhone');
   const nameInput = document.getElementById('clientName');
   const msgDiv = document.getElementById('phoneCheckMsg');
@@ -1560,7 +1542,6 @@ async function showOrderForm() {
     }
   });
 
-  // Сохранение заказа
   document.getElementById('saveOrderBtn').onclick = async () => {
     let clientName = document.getElementById('clientName').value.trim();
     let clientPhone = document.getElementById('clientPhone').value.trim();
@@ -1591,7 +1572,6 @@ async function showOrderForm() {
 
     showSpinner();
     try {
-      // 1. Создаём клиента (или находим)
       let clientId = null;
       if (!cachedClients.length) await fetchClients();
       const existingClient = findClientByPhone(clientPhone);
@@ -1612,7 +1592,6 @@ async function showOrderForm() {
         clientId = createRes.data.id;
       }
 
-      // 2. Создаём заказ (без товаров)
       const orderRes = await apiCall('/api/orders', {
         method: 'POST',
         body: JSON.stringify({
@@ -1627,18 +1606,16 @@ async function showOrderForm() {
       if (!orderRes.ok) throw new Error(orderRes.data.error || 'Ошибка создания заказа');
       const orderId = orderRes.data.orderId;
 
-      // 3. Сохраняем товары заказа
       for (const prod of orderProducts) {
         let finalProductId = prod.productId;
         let finalPrice = prod.price;
         if (!finalProductId && prod.customName) {
-          // Попытка создать товар
           const newProdRes = await apiCall('/api/products', {
             method: 'POST',
             body: JSON.stringify({
               categoryId: 1,
               name: prod.customName,
-              price: prod.price,
+              price: finalPrice,
               description: 'Создан автоматически из заказа'
             })
           });
@@ -1652,223 +1629,8 @@ async function showOrderForm() {
             method: 'POST',
             body: JSON.stringify({ orderId, productId: finalProductId, quantity: prod.quantity, price: finalPrice })
           });
-        }
-      }
-
-      showToast(`✅ Заказ #${orderId} создан`);
-      document.getElementById('orderModal').remove();
-      sessionStorage.removeItem('cachedOrders');
-      cachedOrders = [];
-      await fetchAllOrders(true);
-      await renderCalendar();
-    } catch (err) {
-      showToast(err.message, true);
-    } finally {
-      hideSpinner();
-    }
-  };
-
-  document.getElementById('closeModalBtn').onclick = () => document.getElementById('orderModal').remove();
-}
-function calculateTotalAndRowSums() {
-  // обновляем суммы в строках
-  document.querySelectorAll('#orderProductsContainer tbody tr').forEach((row, idx) => {
-    if (idx < orderProducts.length) {
-      const qty = orderProducts[idx].quantity || 1;
-      const price = orderProducts[idx].price || 0;
-      const sum = qty * price;
-      const sumCell = row.querySelector('.product-sum');
-      if (sumCell) sumCell.textContent = sum.toFixed(2);
-    }
-  });
-  // общая сумма
-  const total = orderProducts.reduce((s, p) => s + (p.price * p.quantity), 0);
-  const totalDisplay = document.getElementById('orderPriceDisplay');
-if (totalDisplay) totalDisplay.textContent = total.toFixed(2);
-}
- 
-
-  // HTML модального окна (добавляем блок товаров)
-  const modalHtml = `
-    <div id="orderModal" class="modal" onclick="if(event.target===this) this.remove()">
-      <div class="modal-content">
-        <h3>➕ Новый заказ</h3>
-        <label>👤 Имя клиента</label>
-        <input type="text" id="clientName" placeholder="Аноним">
-        <label>📞 Телефон клиента</label>
-        <input type="tel" id="clientPhone" placeholder="не указан">
-        <label>📱 Социальные сети</label>
-        <input type="text" id="clientSocial" placeholder="@username">
-        <div id="phoneCheckMsg" style="font-size:0.8rem; margin-top:4px;"></div>
-        <div id="productsBlock" style="margin-top:12px;">
-          <h4>🛒 Товары в заказе</h4>
-          <div id="orderProductsContainer"></div>
-          <button type="button" id="addProductRowBtn" class="add-row" style="margin-top:4px;">➕ Добавить товар</button>
-        </div>
-        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 12px;">
-  <label style="font-weight: normal;">💰 Итого (BYN)</label>
-  <span id="orderPriceDisplay" style="font-size: 1.4rem; font-weight: bold; color: #f97316;">0.00</span>
-</div>
-        <label>📝 Подробности заказа</label>
-        <textarea id="orderDetails" rows="2"></textarea>
-        <label>🚚 Доставка</label>
-        <input type="text" id="orderDelivery" placeholder="Курьером / Самовывоз">
-        <label>📅 Дата выполнения *</label>
-        <input type="date" id="orderDate">
-        <label>📌 Статус</label>
-        <div class="status-group" id="newOrderStatusGroup">
-          ${statuses.map(s => `<button class="status-btn ${s === selectedStatus ? 'active' : ''}" data-status="${s}">${s}</button>`).join('')}
-        </div>
-        <div class="modal-buttons">
-          <button id="saveOrderBtn">Сохранить</button>
-          <button id="closeModalBtn" class="secondary">Отмена</button>
-        </div>
-      </div>
-    </div>
-  `;
-  document.body.insertAdjacentHTML('beforeend', modalHtml);
-
-  // Отрисовка пустого списка товаров (изначально пусто)
-  renderProductRows();
-
-  // Кнопка "Добавить товар"
-  document.getElementById('addProductRowBtn').onclick = () => {
-    orderProducts.push({
-  productId: null,
-  name: null,
-  price: 0,
-  quantity: 1,
-  customName: '',
-  customPrice: 0
-});
-renderProductRows();
-calculateTotalAndRowSums();
-  };
-
-  // Обработчики выбора статуса
-  const statusBtns = document.querySelectorAll('#newOrderStatusGroup .status-btn');
-  statusBtns.forEach(btn => {
-    btn.onclick = () => {
-      selectedStatus = btn.getAttribute('data-status');
-      statusBtns.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-    };
-  });
-
-  // Поиск клиента по телефону (как было)
-  const phoneInput = document.getElementById('clientPhone');
-  const nameInput = document.getElementById('clientName');
-  const msgDiv = document.getElementById('phoneCheckMsg');
-  function findClientByPhone(phone) {
-    const normalized = phone.replace(/[^0-9+]/g, '');
-    return cachedClients.find(c => c.phone && c.phone.replace(/[^0-9+]/g, '') === normalized);
-  }
-  phoneInput.addEventListener('blur', async () => {
-    const phone = phoneInput.value.trim();
-    if (phone.length < 3) return;
-    if (!cachedClients.length) await fetchClients();
-    const found = findClientByPhone(phone);
-    if (found) {
-      nameInput.value = found.name;
-      msgDiv.innerHTML = '<span style="color:green;">✅ Клиент найден</span>';
-    } else {
-      msgDiv.innerHTML = '<span style="color:orange;">⚠️ Новый клиент будет создан</span>';
-    }
-  });
-
-  // Сохранение заказа
-  document.getElementById('saveOrderBtn').onclick = async () => {
-    let clientName = document.getElementById('clientName').value.trim();
-    let clientPhone = document.getElementById('clientPhone').value.trim();
-    let clientSocial = document.getElementById('clientSocial').value.trim();
-    let details = document.getElementById('orderDetails').value;
-    let delivery = document.getElementById('orderDelivery').value;
-    let date = document.getElementById('orderDate').value;
-    let activeBtn = document.querySelector('#newOrderStatusGroup .status-btn.active');
-    let finalStatus = activeBtn ? activeBtn.getAttribute('data-status') : 'в работе';
-
-    if (!clientName) clientName = "Аноним";
-    if (!clientPhone) clientPhone = "не указан";
-    if (!date) {
-      showToast('Укажите дату выполнения', true);
-      return;
-    }
-    if (orderProducts.length === 0) {
-      showToast('Добавьте хотя бы один товар', true);
-      return;
-    }
-
-  const totalDisplay = document.getElementById('orderPriceDisplay');
-const totalPrice = parseFloat(totalDisplay ? totalDisplay.textContent : '0');
-if (isNaN(totalPrice) || totalPrice <= 0) {
-  showToast('Некорректная сумма заказа', true);
-  return;
-}
-
-    showSpinner();
-    try {
-      // 1. Клиент
-      let clientId = null;
-      if (!cachedClients.length) await fetchClients();
-      const existingClient = findClientByPhone(clientPhone);
-      if (existingClient) {
-        clientId = existingClient.id;
-        if (existingClient.name !== clientName || existingClient.address !== clientSocial) {
-          await apiCall(`/api/clients/${existingClient.id}`, {
-            method: 'PUT',
-            body: JSON.stringify({ name: clientName, phone: clientPhone, address: clientSocial })
-          });
-        }
-      } else {
-        const createRes = await apiCall('/api/clients', {
-          method: 'POST',
-          body: JSON.stringify({ name: clientName, phone: clientPhone, address: clientSocial })
-        });
-        if (!createRes.ok) throw new Error(createRes.data.error || 'Ошибка создания клиента');
-        clientId = createRes.data.id;
-      }
-
-      // 2. Создаём заказ (без товаров, чтобы получить orderId)
-      const orderRes = await apiCall('/api/orders', {
-        method: 'POST',
-        body: JSON.stringify({
-          clientId: clientId,
-          price: totalPrice,
-          status: finalStatus,
-          details: details,
-          delivery: delivery,
-          executionDate: date
-        })
-      });
-      if (!orderRes.ok) throw new Error(orderRes.data.error || 'Ошибка создания заказа');
-      const orderId = orderRes.data.orderId;
-
-      // 3. Сохраняем товары заказа (если есть таблица ЗАКАЗЫ_ТОВАРЫ)
-      for (const prod of orderProducts) {
-        let finalProductId = prod.productId;
-        let finalPrice = prod.price;
-        let finalName = prod.customName ? prod.customName : prod.name;
-        // Если товар новый (нет в справочнике) – можно его создать в справочнике
-        if (!finalProductId && finalName) {
-          const newProductRes = await apiCall('/api/products', {
-            method: 'POST',
-            body: JSON.stringify({
-              categoryId: 1, // или дефолтная категория
-              name: finalName,
-              price: finalPrice,
-              description: 'Создан автоматически из заказа'
-            })
-          });
-          if (newProductRes.ok) finalProductId = newProductRes.data.id;
-        }
-        if (finalProductId) {
-          await apiCall('/api/order-products', {
-            method: 'POST',
-            body: JSON.stringify({ orderId, productId: finalProductId, quantity: prod.quantity, price: finalPrice })
-          });
         } else {
-          // Если не удалось создать, можно записать просто текст в details (но лучше расширить таблицу)
-          console.warn('Товар не сохранён', finalName);
+          console.warn('Товар не сохранён', prod.customName);
         }
       }
 
