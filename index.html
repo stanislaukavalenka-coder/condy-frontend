@@ -966,7 +966,7 @@ async function showOrderDetailsModal(order, client) {
   let currentStatus = order.status;
 
   // Данные товаров заказа (загрузим позже)
-  let orderProducts = []; // { productId, name, price, quantity, customName }
+  let orderProducts = [];
 
   // Загрузка товаров заказа
   async function loadOrderProducts() {
@@ -988,45 +988,43 @@ async function showOrderDetailsModal(order, client) {
 
   // Отрисовка таблицы товаров
   function renderProductRows() {
-  const container = document.getElementById('orderProductsContainer');
-  if (!container) return;
-  if (orderProducts.length === 0) {
-    container.innerHTML = '<div class="products-table" style="padding:8px; text-align:center;">Нет товаров</div>';
-    return;
-  }
+    const container = document.getElementById('editOrderProductsContainer');
+    if (!container) return;
+    if (orderProducts.length === 0) {
+      container.innerHTML = '<div class="products-table" style="padding:8px; text-align:center;">Нет товаров</div>';
+      return;
+    }
 
-  let html = `
-    <table class="products-table">
-      <thead><tr><th>Наименование</th><th style="width:80px">Кол-во (шт)</th><th style="width:100px">Цена (BYN)</th><th style="width:80px">Сумма</th><th style="width:30px"></th></tr></thead>
-      <tbody>
-  `;
-
-  // Убедимся, что cachedProducts загружены и отфильтрованы
-  const activeProducts = (cachedProducts || []).filter(p => p.isActive);
-
-  orderProducts.forEach((p, idx) => {
-    const displayName = p.customName ? p.customName : (p.name || '');
-    const sum = (p.price || 0) * (p.quantity || 1);
-    const datalistId = `productsDatalist_${idx}`;
-    html += `
-      <tr data-idx="${idx}">
-        <td>
-          <input type="text" class="product-name" list="${datalistId}" value="${escapeHtml(displayName)}" placeholder="Название товара">
-          <datalist id="${datalistId}">
-            ${activeProducts.map(prod => `<option value="${escapeHtml(prod.name)}" data-price="${prod.price}"></option>`).join('')}
-          </datalist>
-        </td>
-        <td><input type="number" class="product-quantity" value="${p.quantity}" min="1" step="1"></td>
-        <td><input type="number" class="product-price" value="${p.price}" step="0.01" min="0"></td>
-        <td class="product-sum">${sum.toFixed(2)}</td>
-        <td class="product-remove"><button class="remove-product" data-idx="${idx}">✖</button></td>
-      </tr>
+    let html = `
+      <table class="products-table">
+        <thead><tr><th>Наименование</th><th style="width:80px">Кол-во (шт)</th><th style="width:100px">Цена (BYN)</th><th style="width:80px">Сумма</th><th style="width:30px"></th></tr></thead>
+        <tbody>
     `;
-  });
-  html += `</tbody></table>`;
-  container.innerHTML = html;
 
-    // Обработчики для строк товаров
+    const activeProducts = (cachedProducts || []).filter(p => p.isActive);
+
+    orderProducts.forEach((p, idx) => {
+      const displayName = p.customName ? p.customName : (p.name || '');
+      const sum = (p.price || 0) * (p.quantity || 1);
+      const datalistId = `editProductsDatalist_${idx}`;
+      html += `
+        <tr data-idx="${idx}">
+          <td><input type="text" class="edit-product-name" list="${datalistId}" value="${escapeHtml(displayName)}" placeholder="Название товара">
+            <datalist id="${datalistId}">
+              ${activeProducts.map(prod => `<option value="${escapeHtml(prod.name)}" data-price="${prod.price}"></option>`).join('')}
+            </datalist>
+          </td>
+          <td><input type="number" class="edit-product-quantity" value="${p.quantity}" min="1" step="1"></td>
+          <td><input type="number" class="edit-product-price" value="${p.price}" step="0.01" min="0"></td>
+          <td class="product-sum">${sum.toFixed(2)}</td>
+          <td class="product-remove"><button class="remove-edit-product" data-idx="${idx}">✖</button></td>
+        </tr>
+      `;
+    });
+    html += `</tbody></table>`;
+    container.innerHTML = html;
+
+    // Обработчики
     document.querySelectorAll('.edit-product-name').forEach((input, idx) => {
       input.addEventListener('change', async (e) => {
         const newName = e.target.value.trim();
@@ -1077,22 +1075,22 @@ async function showOrderDetailsModal(order, client) {
   }
 
   // Пересчёт сумм в строках и общей суммы
-function calculateTotalAndRowSums() {
-  document.querySelectorAll('#editOrderProductsContainer tbody tr').forEach((row, idx) => {
-    if (idx < orderProducts.length) {
-      const qty = orderProducts[idx].quantity || 1;
-      const price = orderProducts[idx].price || 0;
-      const sum = qty * price;
-      const sumCell = row.querySelector('.product-sum');
-      if (sumCell) sumCell.textContent = sum.toFixed(2);
-    }
-  });
-  const total = orderProducts.reduce((s, p) => s + (p.price * p.quantity), 0);
-  const totalDisplay = document.getElementById('editOrderPriceDisplay');
-  if (totalDisplay) totalDisplay.textContent = total.toFixed(2);
-}
+  function calculateTotalAndRowSums() {
+    document.querySelectorAll('#editOrderProductsContainer tbody tr').forEach((row, idx) => {
+      if (idx < orderProducts.length) {
+        const qty = orderProducts[idx].quantity || 1;
+        const price = orderProducts[idx].price || 0;
+        const sum = qty * price;
+        const sumCell = row.querySelector('.product-sum');
+        if (sumCell) sumCell.textContent = sum.toFixed(2);
+      }
+    });
+    const total = orderProducts.reduce((s, p) => s + (p.price * p.quantity), 0);
+    const totalDisplay = document.getElementById('editOrderPriceDisplay');
+    if (totalDisplay) totalDisplay.textContent = total.toFixed(2);
+  }
 
-  // HTML модального окна (с блоком товаров и итогом)
+  // HTML модального окна
   const modalHtml = `
     <div id="editOrderModal" class="modal" onclick="if(event.target===this) this.remove()">
       <div class="modal-content" style="max-width: 700px;">
@@ -1268,11 +1266,10 @@ function calculateTotalAndRowSums() {
         let finalProductId = prod.productId;
         let finalPrice = prod.price;
         if (!finalProductId && prod.customName) {
-          // Попытка создать новый товар (если права позволяют)
           const newProdRes = await apiCall('/api/products', {
             method: 'POST',
             body: JSON.stringify({
-              categoryId: 1, // дефолтная категория
+              categoryId: 1,
               name: prod.customName,
               price: prod.price,
               description: 'Создан автоматически из заказа'
@@ -1280,7 +1277,7 @@ function calculateTotalAndRowSums() {
           });
           if (newProdRes.ok) {
             finalProductId = newProdRes.data.id;
-            await fetchProducts(true); // обновить кэш
+            await fetchProducts(true);
           } else {
             console.warn('Не удалось создать товар', prod.customName);
             continue;
