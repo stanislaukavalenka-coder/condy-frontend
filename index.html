@@ -998,8 +998,8 @@ function calculateTotalAndRowSums() {
   });
   // общая сумма
   const total = orderProducts.reduce((s, p) => s + (p.price * p.quantity), 0);
-  const priceField = document.getElementById('orderPrice');
-  if (priceField) priceField.value = total.toFixed(2);
+  const totalDisplay = document.getElementById('orderPriceDisplay');
+if (totalDisplay) totalDisplay.textContent = total.toFixed(2);
 }
  
 
@@ -1020,8 +1020,10 @@ function calculateTotalAndRowSums() {
           <div id="orderProductsContainer"></div>
           <button type="button" id="addProductRowBtn" class="add-row" style="margin-top:4px;">➕ Добавить товар</button>
         </div>
-        <label>💰 Итого (BYN)</label>
-        <input type="number" id="orderPrice" step="0.01" readonly style="background:#f3f4f6;">
+        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 12px;">
+  <label style="font-weight: normal;">💰 Итого (BYN)</label>
+  <span id="orderPriceDisplay" style="font-size: 1.4rem; font-weight: bold; color: #f97316;">0.00</span>
+</div>
         <label>📝 Подробности заказа</label>
         <textarea id="orderDetails" rows="2"></textarea>
         <label>🚚 Доставка</label>
