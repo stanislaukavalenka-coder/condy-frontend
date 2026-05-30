@@ -145,7 +145,51 @@
     flex: 1;
     margin-top: 0;
   }
-  
+  /* Стили для компактной таблицы товаров */
+.products-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+.products-table th,
+.products-table td {
+  padding: 4px 2px;
+  border-bottom: 1px solid #e2e8f0;
+  vertical-align: middle;
+}
+.products-table input {
+  width: 100%;
+  padding: 4px;
+  font-size: 0.75rem;
+  box-sizing: border-box;
+}
+.products-table .product-name {
+  min-width: 120px;
+}
+.products-table .product-quantity,
+.products-table .product-price {
+  width: 70px;
+  text-align: center;
+}
+.products-table .product-remove {
+  width: 30px;
+  text-align: center;
+}
+.product-remove button {
+  background: none;
+  border: none;
+  color: #ef4444;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  width: auto;
+}
+.add-product-btn {
+  margin-top: 8px;
+  font-size: 0.75rem;
+  padding: 4px 8px;
+}
 
 
   /* Выезжающее меню – без изменений (можно позже) */
@@ -171,6 +215,7 @@
     .nav-item span:first-child { font-size: 18px; }
     .nav-item { font-size: 9px; }
   }
+  
 </style>
 </head>
 
@@ -862,77 +907,100 @@ function showOrderForm() {
 
   // Функция отрисовки списка товаров
   function renderProductRows() {
-    const container = document.getElementById('orderProductsContainer');
-    if (!container) return;
-    if (orderProducts.length === 0) {
-      container.innerHTML = '<div class="product-row" style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">Нет товаров</div>';
-    } else {
-      let html = '';
-      orderProducts.forEach((p, idx) => {
-        let displayName = p.customName ? p.customName : (p.name || '');
-        html += `
-          <div class="product-row" data-idx="${idx}" style="display:flex; gap:8px; align-items:center; margin-bottom:8px; flex-wrap:wrap;">
-            <input type="text" class="product-name" value="${escapeHtml(displayName)}" placeholder="Название товара" style="flex:2; min-width:120px;">
-            <input type="number" class="product-quantity" value="${p.quantity}" placeholder="Кол-во" step="1" min="1" style="width:80px;">
-            <input type="number" class="product-price" value="${p.price}" placeholder="Цена" step="0.01" style="width:100px;">
-            <button class="remove-product" data-idx="${idx}" style="width:auto;">✖</button>
-          </div>
-        `;
-      });
-      container.innerHTML = html;
-      // Подключаем обработчики для каждой строки
-      document.querySelectorAll('.product-row').forEach(row => {
-        const idx = parseInt(row.dataset.idx);
-        const nameInput = row.querySelector('.product-name');
-        const qtyInput = row.querySelector('.product-quantity');
-        const priceInput = row.querySelector('.product-price');
-        const removeBtn = row.querySelector('.remove-product');
-
-        // При изменении названия – пытаемся найти товар в кэше и подставить цену
-        nameInput.addEventListener('change', async () => {
-          let newName = nameInput.value.trim();
-          if (!newName) return;
-          // Поиск в кэше
-          if (!cachedProducts.length) await fetchProducts();
-          const found = cachedProducts.find(p => p.name.toLowerCase() === newName.toLowerCase());
-          if (found) {
-            orderProducts[idx].productId = found.id;
-            orderProducts[idx].name = found.name;
-            orderProducts[idx].price = found.price;
-            orderProducts[idx].customName = null;
-            priceInput.value = found.price;
-            nameInput.value = found.name;
-          } else {
-            // Новый товар – сохраняем customName и предлагаем ввести цену
-            orderProducts[idx].productId = null;
-            orderProducts[idx].name = null;
-            orderProducts[idx].customName = newName;
-            orderProducts[idx].price = parseFloat(priceInput.value) || 0;
-          }
-          calculateTotal();
-        });
-        qtyInput.addEventListener('input', () => {
-          let qty = parseInt(qtyInput.value);
-          if (isNaN(qty) || qty < 1) qty = 1;
-          orderProducts[idx].quantity = qty;
-          calculateTotal();
-        });
-        priceInput.addEventListener('input', () => {
-          let price = parseFloat(priceInput.value);
-          if (isNaN(price)) price = 0;
-          orderProducts[idx].price = price;
-          calculateTotal();
-        });
-        removeBtn.onclick = () => {
-          orderProducts.splice(idx, 1);
-          renderProductRows();
-          calculateTotal();
-        };
-      });
-    }
-    calculateTotal();
+  const container = document.getElementById('orderProductsContainer');
+  if (!container) return;
+  if (orderProducts.length === 0) {
+    container.innerHTML = '<div class="products-table" style="padding: 8px; text-align: center;">Нет товаров</div>';
+    return;
   }
 
+  let html = `
+    <table class="products-table">
+      <thead>
+        <tr><th>Наименование</th><th style="width:80px">Кол-во (шт)</th><th style="width:100px">Цена (BYN)</th><th style="width:80px">Сумма</th><th style="width:30px"></th></tr>
+      </thead>
+      <tbody>
+  `;
+  orderProducts.forEach((p, idx) => {
+    let displayName = p.customName ? p.customName : (p.name || '');
+    const sum = (p.price || 0) * (p.quantity || 1);
+    html += `
+      <tr data-idx="${idx}">
+        <td><input type="text" class="product-name" value="${escapeHtml(displayName)}" placeholder="Название товара"></td>
+        <td><input type="number" class="product-quantity" value="${p.quantity}" min="1" step="1"></td>
+        <td><input type="number" class="product-price" value="${p.price}" step="0.01" min="0"></td>
+        <td class="product-sum">${sum.toFixed(2)}</td>
+        <td class="product-remove"><button class="remove-product" data-idx="${idx}">✖</button></td>
+      </tr>
+    `;
+  });
+  html += `</tbody></table>`;
+  container.innerHTML = html;
+
+  // Привязываем обработчики
+  document.querySelectorAll('#orderProductsContainer .product-name').forEach((input, idx) => {
+    input.addEventListener('change', async (e) => {
+      const newName = e.target.value.trim();
+      if (!newName) return;
+      if (!cachedProducts.length) await fetchProducts();
+      const found = cachedProducts.find(p => p.name.toLowerCase() === newName.toLowerCase());
+      if (found) {
+        orderProducts[idx].productId = found.id;
+        orderProducts[idx].name = found.name;
+        orderProducts[idx].price = found.price;
+        orderProducts[idx].customName = null;
+        const priceInput = e.target.closest('tr').querySelector('.product-price');
+        priceInput.value = found.price;
+        e.target.value = found.name;
+      } else {
+        orderProducts[idx].productId = null;
+        orderProducts[idx].name = null;
+        orderProducts[idx].customName = newName;
+      }
+      calculateTotalAndRowSums();
+    });
+  });
+  document.querySelectorAll('#orderProductsContainer .product-quantity').forEach((input, idx) => {
+    input.addEventListener('input', (e) => {
+      let qty = parseInt(e.target.value);
+      if (isNaN(qty) || qty < 1) qty = 1;
+      orderProducts[idx].quantity = qty;
+      calculateTotalAndRowSums();
+    });
+  });
+  document.querySelectorAll('#orderProductsContainer .product-price').forEach((input, idx) => {
+    input.addEventListener('input', (e) => {
+      let price = parseFloat(e.target.value);
+      if (isNaN(price)) price = 0;
+      orderProducts[idx].price = price;
+      calculateTotalAndRowSums();
+    });
+  });
+  document.querySelectorAll('#orderProductsContainer .remove-product').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const idx = parseInt(btn.dataset.idx);
+      orderProducts.splice(idx, 1);
+      renderProductRows();
+      calculateTotalAndRowSums();
+    });
+  });
+}
+function calculateTotalAndRowSums() {
+  // обновляем суммы в строках
+  document.querySelectorAll('#orderProductsContainer tbody tr').forEach((row, idx) => {
+    if (idx < orderProducts.length) {
+      const qty = orderProducts[idx].quantity || 1;
+      const price = orderProducts[idx].price || 0;
+      const sum = qty * price;
+      const sumCell = row.querySelector('.product-sum');
+      if (sumCell) sumCell.textContent = sum.toFixed(2);
+    }
+  });
+  // общая сумма
+  const total = orderProducts.reduce((s, p) => s + (p.price * p.quantity), 0);
+  const priceField = document.getElementById('orderPrice');
+  if (priceField) priceField.value = total.toFixed(2);
+}
   function calculateTotal() {
     const total = orderProducts.reduce((sum, p) => sum + (p.price * p.quantity), 0);
     const priceField = document.getElementById('orderPrice');
@@ -983,14 +1051,15 @@ function showOrderForm() {
   // Кнопка "Добавить товар"
   document.getElementById('addProductRowBtn').onclick = () => {
     orderProducts.push({
-      productId: null,
-      name: null,
-      price: 0,
-      quantity: 1,
-      customName: '',
-      customPrice: 0
-    });
-    renderProductRows();
+  productId: null,
+  name: null,
+  price: 0,
+  quantity: 1,
+  customName: '',
+  customPrice: 0
+});
+renderProductRows();
+calculateTotalAndRowSums();
   };
 
   // Обработчики выбора статуса
