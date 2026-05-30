@@ -186,6 +186,8 @@ let lastMoreSection = null;
 let selectedDate = null;
 let cachedOrders = [];
 let cachedClients = [];
+let cachedCategories = [];
+let cachedProducts = [];
 const API_BASE = 'https://condy-api.onrender.com';
 async function apiCall(url, options = {}) {
   const token = localStorage.getItem('access_token');
@@ -209,6 +211,31 @@ async function apiCall(url, options = {}) {
     data = await response.text();
   }
   return { status: response.status, ok: response.ok, data };
+}
+
+  async function fetchCategories(force = false) {
+  if (!force && sessionStorage.getItem('cachedCategories')) {
+    cachedCategories = JSON.parse(sessionStorage.getItem('cachedCategories'));
+    return cachedCategories;
+  }
+  const result = await apiCall('/api/categories');
+  if (result.ok && Array.isArray(result.data)) {
+    cachedCategories = result.data;
+    sessionStorage.setItem('cachedCategories', JSON.stringify(cachedCategories));
+  } else cachedCategories = [];
+  return cachedCategories;
+}
+async function fetchProducts(force = false) {
+  if (!force && sessionStorage.getItem('cachedProducts')) {
+    cachedProducts = JSON.parse(sessionStorage.getItem('cachedProducts'));
+    return cachedProducts;
+  }
+  const result = await apiCall('/api/products');
+  if (result.ok && Array.isArray(result.data)) {
+    cachedProducts = result.data;
+    sessionStorage.setItem('cachedProducts', JSON.stringify(cachedProducts));
+  } else cachedProducts = [];
+  return cachedProducts;
 }
 // ========== АВТОРИЗАЦИЯ ==========
 async function register(name, email, password) {
@@ -831,6 +858,7 @@ async function showClientOrdersModal(clientId) {
 function showOrderForm() {
   let selectedStatus = 'в работе';
   const statuses = ['в работе', 'оплачен', 'завершен', 'отменён'];
+  let orderProducts = []; // { productId, name, price, quantity }
 
   const modalHtml = `
     <div id="orderModal" class="modal" onclick="if(event.target===this) this.remove()">
@@ -843,8 +871,13 @@ function showOrderForm() {
         <label>📱 Социальные сети</label>
         <input type="text" id="clientSocial" placeholder="@username">
         <div id="phoneCheckMsg" style="font-size:0.8rem; margin-top:4px;"></div>
+        <div id="orderProductsBlock">
+          <h4>🛒 Товары в заказе</h4>
+          <div id="orderProductsList"></div>
+          <button type="button" id="addProductToOrderBtn" class="add-row" style="margin-top:4px;">➕ Добавить товар</button>
+        </div>
         <label>💰 Цена (BYN) *</label>
-        <input type="number" id="orderPrice" step="0.01">
+        <input type="number" id="orderPrice" step="0.01" readonly style="background:#f3f4f6;">
         <label>📝 Подробности заказа</label>
         <textarea id="orderDetails" rows="2"></textarea>
         <label>🚚 Доставка</label>
@@ -864,6 +897,93 @@ function showOrderForm() {
   `;
   document.body.insertAdjacentHTML('beforeend', modalHtml);
 
+  // Отрисовка списка товаров в заказе
+  function renderOrderProducts() {
+    const container = document.getElementById('orderProductsList');
+    if (orderProducts.length === 0) {
+      container.innerHTML = '<p>Нет товаров</p>';
+      document.getElementById('orderPrice').value = '';
+      return;
+    }
+    let html = '<table style="width:100%; border-collapse:collapse;"><thead><tr><th>Товар</th><th>Цена</th><th>Кол-во</th><th>Сумма</th><th></th></tr></thead><tbody>';
+    let total = 0;
+    orderProducts.forEach((p, idx) => {
+      const sum = p.price * p.quantity;
+      total += sum;
+      html += `<tr>
+        <td>${escapeHtml(p.name)}</td>
+        <td>${p.price} BYN</td>
+        <td><input type="number" class="productQty" data-idx="${idx}" value="${p.quantity}" min="1" step="1" style="width:70px;"></td>
+        <td>${sum.toFixed(2)} BYN</td>
+        <td><button class="removeProductBtn" data-idx="${idx}">✖</button></td>
+      </tr>`;
+    });
+    html += `</tbody></table><div><strong>Итого: ${total.toFixed(2)} BYN</strong></div>`;
+    container.innerHTML = html;
+    document.getElementById('orderPrice').value = total.toFixed(2);
+    // Обработчики изменения количества
+    document.querySelectorAll('.productQty').forEach(inp => {
+      inp.onchange = () => {
+        const idx = parseInt(inp.dataset.idx);
+        let qty = parseInt(inp.value);
+        if (isNaN(qty) || qty < 1) qty = 1;
+        orderProducts[idx].quantity = qty;
+        renderOrderProducts();
+      };
+    });
+    // Обработчики удаления
+    document.querySelectorAll('.removeProductBtn').forEach(btn => {
+      btn.onclick = () => {
+        const idx = parseInt(btn.dataset.idx);
+        orderProducts.splice(idx, 1);
+        renderOrderProducts();
+      };
+    });
+  }
+
+  // Кнопка "Добавить товар"
+  document.getElementById('addProductToOrderBtn').onclick = async () => {
+    if (!cachedProducts.length) await fetchProducts();
+    const activeProducts = cachedProducts.filter(p => p.isActive);
+    if (activeProducts.length === 0) {
+      showToast('Нет активных товаров. Сначала добавьте товары в разделе "Товары".', true);
+      return;
+    }
+    const modalSelect = document.createElement('div');
+    modalSelect.className = 'modal';
+    modalSelect.onclick = (e) => { if (e.target === modalSelect) modalSelect.remove(); };
+    modalSelect.innerHTML = `
+      <div class="modal-content" style="max-width:400px;">
+        <h3>Выберите товар</h3>
+        <select id="tempProductId" style="width:100%; margin-bottom:12px;">
+          ${activeProducts.map(p => `<option value="${p.id}" data-price="${p.price}">${escapeHtml(p.name)} — ${p.price} BYN</option>`).join('')}
+        </select>
+        <label>Количество</label>
+        <input type="number" id="tempProductQty" value="1" min="1">
+        <div class="modal-buttons">
+          <button id="confirmAddProductBtn">Добавить</button>
+          <button id="cancelAddProductBtn" class="secondary">Отмена</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modalSelect);
+    document.getElementById('confirmAddProductBtn').onclick = () => {
+      const select = document.getElementById('tempProductId');
+      const productId = parseInt(select.value);
+      const product = cachedProducts.find(p => p.id === productId);
+      if (product) {
+        let qty = parseInt(document.getElementById('tempProductQty').value);
+        if (isNaN(qty) || qty < 1) qty = 1;
+        const existing = orderProducts.find(p => p.productId === productId);
+        if (existing) existing.quantity += qty;
+        else orderProducts.push({ productId: product.id, name: product.name, price: product.price, quantity: qty });
+        renderOrderProducts();
+      }
+      modalSelect.remove();
+    };
+    document.getElementById('cancelAddProductBtn').onclick = () => modalSelect.remove();
+  };
+
   // Обработчики выбора статуса
   const statusBtns = document.querySelectorAll('#newOrderStatusGroup .status-btn');
   statusBtns.forEach(btn => {
@@ -874,16 +994,14 @@ function showOrderForm() {
     };
   });
 
+  // Поиск клиента по телефону (подсказка)
   const phoneInput = document.getElementById('clientPhone');
   const nameInput = document.getElementById('clientName');
   const msgDiv = document.getElementById('phoneCheckMsg');
-
-  // Функция локального поиска клиента по телефону (только для подсказки)
   function findClientByPhone(phone) {
     const normalized = phone.replace(/[^0-9+]/g, '');
     return cachedClients.find(c => c.phone && c.phone.replace(/[^0-9+]/g, '') === normalized);
   }
-
   phoneInput.addEventListener('blur', async () => {
     const phone = phoneInput.value.trim();
     if (phone.length < 3) return;
@@ -897,6 +1015,7 @@ function showOrderForm() {
     }
   });
 
+  // Сохранение заказа
   document.getElementById('saveOrderBtn').onclick = async () => {
     let clientName = document.getElementById('clientName').value.trim();
     let clientPhone = document.getElementById('clientPhone').value.trim();
@@ -914,17 +1033,39 @@ function showOrderForm() {
       showToast('Заполните цену и дату выполнения', true);
       return;
     }
+    if (orderProducts.length === 0) {
+      showToast('Добавьте хотя бы один товар', true);
+      return;
+    }
 
     showSpinner();
-
     try {
-      // Отправляем данные клиента и заказа в одном запросе
+      // 1. Создаём клиента (или находим)
+      let clientId = null;
+      if (!cachedClients.length) await fetchClients();
+      const existingClient = findClientByPhone(clientPhone);
+      if (existingClient) {
+        clientId = existingClient.id;
+        if (existingClient.name !== clientName || existingClient.address !== clientSocial) {
+          await apiCall(`/api/clients/${existingClient.id}`, {
+            method: 'PUT',
+            body: JSON.stringify({ name: clientName, phone: clientPhone, address: clientSocial })
+          });
+        }
+      } else {
+        const createRes = await apiCall('/api/clients', {
+          method: 'POST',
+          body: JSON.stringify({ name: clientName, phone: clientPhone, address: clientSocial })
+        });
+        if (!createRes.ok) throw new Error(createRes.data.error || 'Ошибка создания клиента');
+        clientId = createRes.data.id;
+      }
+
+      // 2. Создаём заказ (без товаров, сначала просто заказ)
       const orderRes = await apiCall('/api/orders', {
         method: 'POST',
         body: JSON.stringify({
-          clientName: clientName,
-          clientPhone: clientPhone,
-          clientAddress: clientSocial,
+          clientId: clientId,
           price: price,
           status: finalStatus,
           details: details,
@@ -933,13 +1074,20 @@ function showOrderForm() {
         })
       });
       if (!orderRes.ok) throw new Error(orderRes.data.error || 'Ошибка создания заказа');
+      const orderId = orderRes.data.orderId;
 
-      showToast(`✅ Заказ #${orderRes.data.orderId} создан`);
+      // 3. Сохраняем товары заказа в отдельную таблицу (если реализовано)
+      for (const prod of orderProducts) {
+        await apiCall('/api/order-products', {
+          method: 'POST',
+          body: JSON.stringify({ orderId, productId: prod.productId, quantity: prod.quantity, price: prod.price })
+        });
+      }
+
+      showToast(`✅ Заказ #${orderId} создан`);
       document.getElementById('orderModal').remove();
       sessionStorage.removeItem('cachedOrders');
-      sessionStorage.removeItem('cachedClients');
       cachedOrders = [];
-      cachedClients = [];
       await fetchAllOrders(true);
       await renderCalendar();
     } catch (err) {
@@ -1231,6 +1379,8 @@ function renderMoreTab(container) {
       <button id="menuAddRecipeBtn" class="secondary">📝 Добавить рецепт</button>
       <button id="menuAddIngredientBtn" class="secondary">🧂 Добавить ингредиент</button>
       <button id="menuHistoryOrdersBtn" class="secondary">📜 История заказов</button>
+      <button id="menuCategoriesBtn" class="secondary">📂 Категории</button>
+<button id="menuProductsBtn" class="secondary">🍰 Товары</button>
       <button id="menuMassBatchBtn" class="secondary">📦 Массовые операции</button>
       ${currentUser && currentUser.role === 'admin' ? '<button id="menuUsersBtn" class="secondary">👥 Пользователи</button>' : ''}
       <button id="logoutBtn" class="secondary" style="background:#ef4444;">🚪 Выйти</button>
@@ -1242,6 +1392,8 @@ function renderMoreTab(container) {
     document.getElementById('menuClientsBtn').onclick = () => { lastMoreSection='clients'; renderClientsManager(container); closeMenu(); };
     document.getElementById('menuAddRecipeBtn').onclick = () => { lastMoreSection='addRecipe'; renderAddRecipeForm(container); closeMenu(); };
     document.getElementById('menuAddIngredientBtn').onclick = () => { lastMoreSection='addIngredient'; renderAddIngredientForm(container); closeMenu(); };
+    document.getElementById('menuCategoriesBtn').onclick = () => { renderCategoriesManager(container); closeMenu(); };
+document.getElementById('menuProductsBtn').onclick = () => { renderProductsManager(container); closeMenu(); };
     document.getElementById('menuHistoryOrdersBtn').onclick = () => { lastMoreSection='historyOrders'; renderHistoryOrders(container); closeMenu(); };
     document.getElementById('menuMassBatchBtn').onclick = () => { lastMoreSection='massBatch'; renderMassBatch(container); closeMenu(); };
     if (currentUser && currentUser.role === 'admin') {
@@ -1495,7 +1647,190 @@ function showClientForm(client, callback) {
   document.getElementById('closeClientBtn').onclick = () => modal.remove();
 }
 
+// ========== УПРАВЛЕНИЕ КАТЕГОРИЯМИ ==========
+async function renderCategoriesManager(container) {
+  if (!cachedCategories) await fetchCategories();
+  container.innerHTML = `
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 style="margin: 0;">📂 Категории товаров</h3>
+        <button id="newCategoryBtn" class="secondary" style="width: auto;">➕ Добавить категорию</button>
+      </div>
+      <input type="text" id="categorySearchInput" placeholder="🔍 Поиск категории..." style="margin-bottom: 12px;">
+      <div id="categoriesTableContainer"></div>
+    </div>
+  `;
+  const searchInput = document.getElementById('categorySearchInput');
+  const tableContainer = document.getElementById('categoriesTableContainer');
+  function renderFilteredCategories() {
+    const searchText = searchInput.value.trim().toLowerCase();
+    let filtered = cachedCategories.filter(c => c.name.toLowerCase().includes(searchText));
+    if (filtered.length === 0) {
+      tableContainer.innerHTML = '<p style="padding: 12px; text-align: center;">Категории не найдены</p>';
+      return;
+    }
+    let html = `<table style="width:100%; border-collapse: collapse;">
+      <thead><tr><th>Название</th><th></th></tr></thead><tbody>`;
+    filtered.forEach(c => {
+      html += `<tr>
+        <td>${escapeHtml(c.name)}</td>
+        <td><button class="editCategoryBtn" data-id="${c.id}" style="width: auto;">✏️</button> <button class="deleteCategoryBtn" data-id="${c.id}" style="width: auto; background:#ef4444;">🗑️</button></td>
+      </tr>`;
+    });
+    html += `</tbody></table>`;
+    tableContainer.innerHTML = html;
+    document.querySelectorAll('.editCategoryBtn').forEach(btn => {
+      btn.onclick = () => editCategory(parseInt(btn.dataset.id));
+    });
+    document.querySelectorAll('.deleteCategoryBtn').forEach(btn => {
+      btn.onclick = async () => {
+        if (!confirm('Удалить категорию? Товары этой категории останутся без категории.')) return;
+        const res = await apiCall(`/api/categories/${btn.dataset.id}`, { method: 'DELETE' });
+        if (res.ok) {
+          showToast('Категория удалена');
+          await fetchCategories(true);
+          renderFilteredCategories();
+        } else showToast(res.data.error || 'Ошибка', true);
+      };
+    });
+  }
+  searchInput.addEventListener('input', renderFilteredCategories);
+  renderFilteredCategories();
+  document.getElementById('newCategoryBtn').onclick = () => {
+    const name = prompt('Введите название категории:');
+    if (!name) return;
+    apiCall('/api/categories', { method: 'POST', body: JSON.stringify({ name }) }).then(async res => {
+      if (res.ok) {
+        showToast('Категория добавлена');
+        await fetchCategories(true);
+        renderFilteredCategories();
+      } else showToast(res.data.error || 'Ошибка', true);
+    });
+  };
+}
+async function editCategory(id) {
+  const cat = cachedCategories.find(c => c.id === id);
+  if (!cat) return;
+  const newName = prompt('Новое название категории:', cat.name);
+  if (!newName || newName === cat.name) return;
+  const res = await apiCall(`/api/categories/${id}`, { method: 'PUT', body: JSON.stringify({ name: newName }) });
+  if (res.ok) {
+    showToast('Категория обновлена');
+    await fetchCategories(true);
+    const container = document.getElementById('mainContent');
+    renderCategoriesManager(container);
+  } else showToast(res.data.error || 'Ошибка', true);
+}
 
+// ========== УПРАВЛЕНИЕ ТОВАРАМИ ==========
+async function renderProductsManager(container) {
+  if (!cachedProducts) await fetchProducts();
+  if (!cachedCategories) await fetchCategories();
+  container.innerHTML = `
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 style="margin: 0;">🍰 Товары</h3>
+        <button id="newProductBtn" class="secondary" style="width: auto;">➕ Добавить товар</button>
+      </div>
+      <input type="text" id="productSearchInput" placeholder="🔍 Поиск товара..." style="margin-bottom: 12px;">
+      <div id="productsTableContainer"></div>
+    </div>
+  `;
+  const searchInput = document.getElementById('productSearchInput');
+  const tableContainer = document.getElementById('productsTableContainer');
+  function renderFilteredProducts() {
+    const searchText = searchInput.value.trim().toLowerCase();
+    let filtered = cachedProducts.filter(p => p.name.toLowerCase().includes(searchText));
+    if (filtered.length === 0) {
+      tableContainer.innerHTML = '<p style="padding: 12px; text-align: center;">Товары не найдены</p>';
+      return;
+    }
+    let html = `<table style="width:100%; border-collapse: collapse;">
+      <thead><tr><th>Название</th><th>Категория</th><th>Цена</th><th>Активен</th><th></th></tr></thead><tbody>`;
+    filtered.forEach(p => {
+      const catName = cachedCategories.find(c => c.id === p.categoryId)?.name || '—';
+      html += `<tr>
+        <td>${escapeHtml(p.name)}</td>
+        <td>${escapeHtml(catName)}</td>
+        <td>${p.price} BYN</td>
+        <td>${p.isActive ? '✅' : '❌'}</td>
+        <td><button class="editProductBtn" data-id="${p.id}" style="width: auto;">✏️</button> <button class="deleteProductBtn" data-id="${p.id}" style="width: auto; background:#ef4444;">🗑️</button></td>
+      </td>`;
+    });
+    html += `</tbody></table>`;
+    tableContainer.innerHTML = html;
+    document.querySelectorAll('.editProductBtn').forEach(btn => {
+      btn.onclick = () => editProduct(parseInt(btn.dataset.id));
+    });
+    document.querySelectorAll('.deleteProductBtn').forEach(btn => {
+      btn.onclick = async () => {
+        if (!confirm('Удалить товар?')) return;
+        const res = await apiCall(`/api/products/${btn.dataset.id}`, { method: 'DELETE' });
+        if (res.ok) {
+          showToast('Товар удалён');
+          await fetchProducts(true);
+          renderFilteredProducts();
+        } else showToast(res.data.error || 'Ошибка', true);
+      };
+    });
+  }
+  searchInput.addEventListener('input', renderFilteredProducts);
+  renderFilteredProducts();
+  document.getElementById('newProductBtn').onclick = () => showProductForm(null, () => renderProductsManager(container));
+}
+
+async function editProduct(id) {
+  const product = cachedProducts.find(p => p.id === id);
+  if (!product) return;
+  showProductForm(product, () => {
+    const container = document.getElementById('mainContent');
+    renderProductsManager(container);
+  });
+}
+
+function showProductForm(product, callback) {
+  const modal = document.createElement('div');
+  modal.className = 'modal';
+  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+  modal.innerHTML = `
+    <div class="modal-content">
+      <h3>${product ? 'Редактировать товар' : 'Новый товар'}</h3>
+      <label>Название</label><input id="productName" value="${product ? escapeHtml(product.name) : ''}">
+      <label>Категория</label><select id="productCategoryId">${cachedCategories.map(c => `<option value="${c.id}" ${product && product.categoryId === c.id ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('')}</select>
+      <label>Цена (BYN)</label><input type="number" step="0.01" id="productPrice" value="${product ? product.price : ''}">
+      <label>Описание</label><textarea id="productDescription" rows="2">${product ? escapeHtml(product.description || '') : ''}</textarea>
+      <label>Активен</label><input type="checkbox" id="productActive" ${product && product.isActive ? 'checked' : 'checked'}>
+      <div class="modal-buttons">
+        <button id="saveProductBtn">Сохранить</button>
+        <button id="closeProductBtn" class="secondary">Отмена</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  document.getElementById('saveProductBtn').onclick = async () => {
+    const name = document.getElementById('productName').value.trim();
+    const categoryId = parseInt(document.getElementById('productCategoryId').value);
+    const price = parseFloat(document.getElementById('productPrice').value);
+    const description = document.getElementById('productDescription').value.trim();
+    const isActive = document.getElementById('productActive').checked;
+    if (!name || isNaN(price)) { showToast('Заполните название и цену', true); return; }
+    showSpinner();
+    let result;
+    if (product) {
+      result = await apiCall(`/api/products/${product.id}`, { method: 'PUT', body: JSON.stringify({ name, categoryId, price, description, isActive }) });
+    } else {
+      result = await apiCall('/api/products', { method: 'POST', body: JSON.stringify({ name, categoryId, price, description }) });
+    }
+    hideSpinner();
+    if (result.ok) {
+      showToast(product ? 'Товар обновлён' : 'Товар создан');
+      modal.remove();
+      await fetchProducts(true);
+      if (callback) callback();
+    } else showToast(result.data.error || 'Ошибка', true);
+  };
+  document.getElementById('closeProductBtn').onclick = () => modal.remove();
+}
 
 // ========== АДАПТИРОВАННЫЕ ФУНКЦИИ ==========
 
