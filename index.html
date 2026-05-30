@@ -898,6 +898,7 @@ async function loadOrdersForDate(dateStr) {
   console.log('loadOrdersForDate вызвана для даты', dateStr);
   if (!cachedOrders.length) await fetchAllOrders();
   if (!cachedClients.length) await fetchClients();
+  if (!cachedProducts.length) await fetchProducts(); // нужно для названий товаров
 
   const clientMap = {};
   (cachedClients || []).forEach(c => clientMap[c.id] = c);
@@ -909,6 +910,19 @@ async function loadOrdersForDate(dateStr) {
     return;
   }
 
+  // Загружаем товары для всех заказов на эту дату
+  const orderIds = ordersOnDate.map(o => o.id);
+  const itemsPromises = orderIds.map(id => apiCall(`/api/order-products/${id}`));
+  const itemsResults = await Promise.all(itemsPromises);
+  const itemsMap = {};
+  itemsResults.forEach((res, idx) => {
+    if (res.ok && Array.isArray(res.data)) {
+      itemsMap[orderIds[idx]] = res.data;
+    } else {
+      itemsMap[orderIds[idx]] = [];
+    }
+  });
+
   let html = `<div class="card"><h3>📅 Заказы на ${escapeHtml(dateStr)}</h3>`;
   for (const o of ordersOnDate) {
     const client = clientMap[o.clientId];
@@ -917,17 +931,29 @@ async function loadOrdersForDate(dateStr) {
     else if (o.status === 'оплачен') statusClass = 'paid';
     else if (o.status === 'завершен') statusClass = 'completed';
     else if (o.status === 'отменён') statusClass = 'canceled';
-    
-    // Определяем, является ли клиент новым (у него только один заказ)
+
+    // Помечаем нового клиента (если у него только один заказ)
     let isNew = false;
     if (client && client.id) {
       const clientOrdersCount = cachedOrders.filter(order => order.clientId == client.id).length;
       isNew = (clientOrdersCount === 1);
     }
-    
+
+    // Строим список товаров для этого заказа
+    const items = itemsMap[o.id] || [];
+    let itemsHtml = '';
+    if (items.length) {
+      const shortList = items.slice(0, 2).map(item => {
+        const product = cachedProducts.find(p => p.id === item.productId);
+        return product ? product.name : `Товар #${item.productId}`;
+      }).join(', ');
+      itemsHtml = `<div style="font-size:0.75rem; color:#555;">🛒 ${shortList}${items.length > 2 ? ` +${items.length-2}` : ''}</div>`;
+    }
+
     html += `<div class="order-card-clickable status-${statusClass}" data-id="${o.id}">
       <b>#${o.id}</b> — ${client ? escapeHtml(client.name) : 'Неизвестный'}${isNew ? ' <span class="new-badge" style="background:#f97316; color:white; font-size:0.7rem; padding:2px 6px; border-radius:12px; margin-left:6px;">new</span>' : ''}<br>
       💰 ${o.price} BYN | Статус: ${escapeHtml(o.status)}<br>
+      ${itemsHtml}
       ${o.details ? `📝 ${escapeHtml(o.details)}<br>` : ''}
       ${o.delivery ? `🚚 ${escapeHtml(o.delivery)}<br>` : ''}
     </div>`;
@@ -1052,8 +1078,7 @@ async function showOrderDetailsModal(order, client) {
 
   // Пересчёт сумм в строках и общей суммы
 function calculateTotalAndRowSums() {
-  // обновляем суммы в строках
-  document.querySelectorAll('#orderProductsContainer tbody tr').forEach((row, idx) => {
+  document.querySelectorAll('#editOrderProductsContainer tbody tr').forEach((row, idx) => {
     if (idx < orderProducts.length) {
       const qty = orderProducts[idx].quantity || 1;
       const price = orderProducts[idx].price || 0;
@@ -1063,7 +1088,7 @@ function calculateTotalAndRowSums() {
     }
   });
   const total = orderProducts.reduce((s, p) => s + (p.price * p.quantity), 0);
-  const totalDisplay = document.getElementById('orderPriceDisplay');
+  const totalDisplay = document.getElementById('editOrderPriceDisplay');
   if (totalDisplay) totalDisplay.textContent = total.toFixed(2);
 }
 
@@ -1381,85 +1406,92 @@ async function showOrderForm() {
   }
 
   function renderProductRows() {
-    const container = document.getElementById('orderProductsContainer');
-    if (!container) return;
-    if (orderProducts.length === 0) {
-      container.innerHTML = '<div class="products-table" style="padding:8px; text-align:center;">Нет товаров</div>';
-      return;
-    }
-    let html = `
-      <table class="products-table">
-        <thead><tr><th>Наименование</th><th style="width:80px">Кол-во (шт)</th><th style="width:100px">Цена (BYN)</th><th style="width:80px">Сумма</th><th style="width:30px"></th></tr></thead>
-        <tbody>
-    `;
-    orderProducts.forEach((p, idx) => {
-      const displayName = p.customName ? p.customName : (p.name || '');
-      const sum = (p.price || 0) * (p.quantity || 1);
-      const datalistId = `productsDatalist_${idx}`;
-      html += `
-        <tr data-idx="${idx}">
-          <td>
-            <input type="text" class="product-name" list="${datalistId}" value="${escapeHtml(displayName)}" placeholder="Название товара">
-            <datalist id="${datalistId}">
-              ${cachedProducts.filter(p => p.isActive).map(p => `<option value="${escapeHtml(p.name)}" data-price="${p.price}"></option>`).join('')}
-            </datalist>
-          </td>
-          <td><input type="number" class="product-quantity" value="${p.quantity}" min="1" step="1"></td>
-          <td><input type="number" class="product-price" value="${p.price}" step="0.01" min="0"></td>
-          <td class="product-sum">${sum.toFixed(2)}</td>
-          <td class="product-remove"><button class="remove-product" data-idx="${idx}">✖</button></td>
-        </tr>
-      `;
-    });
-    html += `</tbody></table>`;
-    container.innerHTML = html;
-
-    // Обработчики
-    document.querySelectorAll('.product-name').forEach((input, idx) => {
-      input.addEventListener('change', async (e) => {
-        const selectedName = e.target.value.trim();
-        if (!selectedName) return;
-        const found = cachedProducts.find(p => p.name.toLowerCase() === selectedName.toLowerCase());
-        if (found) {
-          orderProducts[idx].productId = found.id;
-          orderProducts[idx].name = found.name;
-          orderProducts[idx].price = found.price;
-          orderProducts[idx].customName = null;
-          const priceInput = e.target.closest('tr').querySelector('.product-price');
-          if (priceInput) priceInput.value = found.price;
-        } else {
-          orderProducts[idx].productId = null;
-          orderProducts[idx].name = null;
-          orderProducts[idx].customName = selectedName;
-        }
-        calculateTotalAndRowSums();
-      });
-    });
-    document.querySelectorAll('.product-quantity').forEach((input, idx) => {
-      input.addEventListener('input', (e) => {
-        let qty = parseInt(e.target.value);
-        if (isNaN(qty) || qty < 1) qty = 1;
-        orderProducts[idx].quantity = qty;
-        calculateTotalAndRowSums();
-      });
-    });
-    document.querySelectorAll('.product-price').forEach((input, idx) => {
-      input.addEventListener('input', (e) => {
-        let price = parseFloat(e.target.value);
-        if (isNaN(price)) price = 0;
-        orderProducts[idx].price = price;
-        calculateTotalAndRowSums();
-      });
-    });
-    document.querySelectorAll('.remove-product').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const idx = parseInt(btn.dataset.idx);
-        orderProducts.splice(idx, 1);
-        renderProductRows();
-        calculateTotalAndRowSums();
-      });
-    });
+  const container = document.getElementById('editOrderProductsContainer');
+  if (!container) return;
+  if (orderProducts.length === 0) {
+    container.innerHTML = '<div class="products-table" style="padding:8px; text-align:center;">Нет товаров</div>';
+    return;
   }
+
+  let html = `
+    <table class="products-table">
+      <thead><tr><th>Наименование</th><th style="width:80px">Кол-во (шт)</th><th style="width:100px">Цена (BYN)</th><th style="width:80px">Сумма</th><th style="width:30px"></th></tr></thead>
+      <tbody>
+  `;
+
+  const activeProducts = (cachedProducts || []).filter(p => p.isActive);
+
+  orderProducts.forEach((p, idx) => {
+    const displayName = p.customName ? p.customName : (p.name || '');
+    const sum = (p.price || 0) * (p.quantity || 1);
+    const datalistId = `editProductsDatalist_${idx}`;
+    html += `
+      <tr data-idx="${idx}">
+        <td>
+          <input type="text" class="edit-product-name" list="${datalistId}" value="${escapeHtml(displayName)}" placeholder="Название товара">
+          <datalist id="${datalistId}">
+            ${activeProducts.map(prod => `<option value="${escapeHtml(prod.name)}" data-price="${prod.price}"></option>`).join('')}
+          </datalist>
+        </td>
+        <td><input type="number" class="edit-product-quantity" value="${p.quantity}" min="1" step="1"></td>
+        <td><input type="number" class="edit-product-price" value="${p.price}" step="0.01" min="0"></td>
+        <td class="product-sum">${sum.toFixed(2)}</td>
+        <td class="product-remove"><button class="remove-edit-product" data-idx="${idx}">✖</button></td>
+      </tr>
+    `;
+  });
+  html += `</tbody></table>`;
+  container.innerHTML = html;
+
+  // Обработчики (соответствуют классам `edit-`)
+  document.querySelectorAll('.edit-product-name').forEach((input, idx) => {
+    input.addEventListener('change', async (e) => {
+      const newName = e.target.value.trim();
+      if (!newName) return;
+      if (!cachedProducts.length) await fetchProducts();
+      const found = cachedProducts.find(p => p.name.toLowerCase() === newName.toLowerCase());
+      if (found) {
+        orderProducts[idx].productId = found.id;
+        orderProducts[idx].name = found.name;
+        orderProducts[idx].price = found.price;
+        orderProducts[idx].customName = null;
+        const priceInput = e.target.closest('tr').querySelector('.edit-product-price');
+        if (priceInput) priceInput.value = found.price;
+        e.target.value = found.name;
+      } else {
+        orderProducts[idx].productId = null;
+        orderProducts[idx].name = null;
+        orderProducts[idx].customName = newName;
+      }
+      calculateTotalAndRowSums();
+    });
+  });
+  document.querySelectorAll('.edit-product-quantity').forEach((input, idx) => {
+    input.addEventListener('input', (e) => {
+      let qty = parseInt(e.target.value);
+      if (isNaN(qty) || qty < 1) qty = 1;
+      orderProducts[idx].quantity = qty;
+      calculateTotalAndRowSums();
+    });
+  });
+  document.querySelectorAll('.edit-product-price').forEach((input, idx) => {
+    input.addEventListener('input', (e) => {
+      let price = parseFloat(e.target.value);
+      if (isNaN(price)) price = 0;
+      orderProducts[idx].price = price;
+      calculateTotalAndRowSums();
+    });
+  });
+  document.querySelectorAll('.remove-edit-product').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.idx);
+      orderProducts.splice(idx, 1);
+      renderProductRows();
+      calculateTotalAndRowSums();
+    });
+  });
+  calculateTotalAndRowSums();
+}
 
   // ---------- МОДАЛЬНОЕ ОКНО ----------
   const modalHtml = `
