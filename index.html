@@ -1818,36 +1818,53 @@ function renderFinanceTab(container) {
     <button id="addTransactionBtn">➕ Добавить операцию</button>
   `;
 
-  async function loadData(start, end) {
-    console.log('loadData вызвана с параметрами:', start, end);
+  async function loadData() {
+    const startDateInput = document.getElementById('startDate').value;
+    const endDateInput = document.getElementById('endDate').value;
+    if (!startDateInput || !endDateInput) return;
+
     showSpinner();
-    const result = await apiCall(`/api/finance?startDate=${start}&endDate=${end}`);
-    console.log('Результат apiCall:', result);
+    const result = await apiCall('/api/finance');
     hideSpinner();
+
     if (!result.ok) {
       document.getElementById('summary').innerHTML = '<div class="alert">Ошибка загрузки данных</div>';
       return;
     }
-    const data = result.data;
+
+    let transactions = result.data.transactions || [];
+    const start = new Date(startDateInput);
+    const end = new Date(endDateInput);
+    end.setHours(23, 59, 59, 999);
+
+    transactions = transactions.filter(t => {
+      const dateObj = parseCustomDate(t.date);
+      return dateObj >= start && dateObj <= end;
+    });
+
+    const totalIncome = transactions.filter(t => t.type === 'Доход').reduce((s, t) => s + t.amount, 0);
+    const totalExpense = transactions.filter(t => t.type === 'Расход').reduce((s, t) => s + t.amount, 0);
+    const profit = totalIncome - totalExpense;
+
     document.getElementById('summary').innerHTML = `
       <div class="card">
-        📊 <strong>Доходы:</strong> ${data.totalIncome} BYN<br>
-        📉 <strong>Расходы:</strong> ${data.totalExpense} BYN<br>
-        💰 <strong>Прибыль:</strong> ${data.profit} BYN
+        📊 <strong>Доходы:</strong> ${totalIncome} BYN<br>
+        📉 <strong>Расходы:</strong> ${totalExpense} BYN<br>
+        💰 <strong>Прибыль:</strong> ${profit} BYN
       </div>
     `;
+
     const listDiv = document.getElementById('transactionsList');
-    if (!data.transactions || data.transactions.length === 0) {
+    if (transactions.length === 0) {
       listDiv.innerHTML = '<div class="card">📭 Нет операций за выбранный период</div>';
       return;
     }
 
-    // Сортировка с использованием глобальной 
-    data.transactions.sort((a, b) => parseCustomDate(b.date) - parseCustomDate(a.date));
+    transactions.sort((a, b) => parseCustomDate(b.date) - parseCustomDate(a.date));
 
     let html = '<div class="card"><table style="width:100%; border-collapse: collapse;">';
-    html += '<thead><tr><th>Дата</th><th>Тип</th><th>Категория</th><th>Сумма</th><th>Комментарий</th><tr></thead><tbody>';
-    for (const t of data.transactions) {
+    html += '<thead><tr><th>Дата</th><th>Тип</th><th>Категория</th><th>Сумма</th><th>Комментарий</th></tr></thead><tbody>';
+    for (const t of transactions) {
       const displayDate = formatDate(t.date);
       html += `<tr>
         <td style="padding: 8px; border-bottom: 1px solid #ddd;">${escapeHtml(displayDate)}</td>
@@ -1861,15 +1878,14 @@ function renderFinanceTab(container) {
     listDiv.innerHTML = html;
   }
 
-  // Обработчик кнопки фильтрации
   document.getElementById('filterBtn').onclick = () => {
     const s = document.getElementById('startDate').value;
     const e = document.getElementById('endDate').value;
-    if (s && e) loadData(s, e);
+    if (s && e) loadData();
   };
-  loadData(firstDayStr, todayStr);
+  loadData();
 
-  // Обработчик добавления новой операции
+  // Добавление новой операции (остаётся без изменений)
   document.getElementById('addTransactionBtn').onclick = () => {
     const modal = document.createElement('div');
     modal.className = 'modal';
@@ -1910,9 +1926,7 @@ function renderFinanceTab(container) {
       if (result.ok) {
         showToast('Операция добавлена');
         modal.remove();
-        const s = document.getElementById('startDate').value;
-        const e = document.getElementById('endDate').value;
-        if (s && e) loadData(s, e);
+        loadData(); // обновляем список
       } else {
         showToast(result.data.error || 'Ошибка добавления', true);
       }
