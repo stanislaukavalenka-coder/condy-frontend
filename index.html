@@ -1214,7 +1214,7 @@ if (priceInput) priceInput.value = found.price.toFixed(2);
     const newStatus = currentStatus;
 
     const totalDisplay = document.getElementById('editOrderPriceDisplay');
-    const newPrice = parseFloat(totalDisplay ? totalDisplay.textContent : '0');
+    const newPrice = normalizePrice(totalDisplay ? totalDisplay.textContent : '0');
 
     if (isNaN(newPrice) || newPrice <= 0) {
       showToast('Некорректная сумма заказа', true);
