@@ -482,6 +482,13 @@
 <div id="app"></div>
 
 <script>
+function normalizePrice(value) {
+  if (value === undefined || value === null) return 0;
+  let str = String(value).trim().replace(',', '.');
+  let num = parseFloat(str);
+  return isNaN(num) ? 0 : num;
+}
+  
 // ========== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ==========
 let currentUser = null;
 let currentMonth = new Date().getMonth();
@@ -1055,14 +1062,14 @@ async function showOrderDetailsModal(order, client) {
         calculateTotalAndRowSums();
       });
     });
-    document.querySelectorAll('.edit-product-price').forEach((input, idx) => {
-      input.addEventListener('input', (e) => {
-        let price = parseFloat(e.target.value);
-        if (isNaN(price)) price = 0;
-        orderProducts[idx].price = price;
-        calculateTotalAndRowSums();
-      });
-    });
+   document.querySelectorAll('.edit-product-price').forEach((input, idx) => {
+  input.addEventListener('input', (e) => {
+    let price = normalizePrice(e.target.value);
+    orderProducts[idx].price = price;
+    e.target.value = price.toFixed(2); // визуально показываем с двумя знаками
+    calculateTotalAndRowSums();
+  });
+});
     document.querySelectorAll('.remove-edit-product').forEach(btn => {
       btn.addEventListener('click', () => {
         const idx = parseInt(btn.dataset.idx);
@@ -1403,7 +1410,7 @@ async function showOrderForm() {
   }
 
   function renderProductRows() {
-  const container = document.getElementById('editOrderProductsContainer');
+  const container = document.getElementById('orderProductsContainer');
   if (!container) return;
   if (orderProducts.length === 0) {
     container.innerHTML = '<div class="products-table" style="padding:8px; text-align:center;">Нет товаров</div>';
@@ -1421,7 +1428,7 @@ async function showOrderForm() {
   orderProducts.forEach((p, idx) => {
     const displayName = p.customName ? p.customName : (p.name || '');
     const sum = (p.price || 0) * (p.quantity || 1);
-    const datalistId = `editProductsDatalist_${idx}`;
+    const datalistId = `productsDatalist_${idx}`;
     html += `
       <tr data-idx="${idx}">
         <td>
@@ -1440,7 +1447,7 @@ async function showOrderForm() {
   html += `</tbody></table>`;
   container.innerHTML = html;
 
-  // Обработчики (соответствуют классам `edit-`)
+  // Обработчики
   document.querySelectorAll('.edit-product-name').forEach((input, idx) => {
     input.addEventListener('change', async (e) => {
       const newName = e.target.value.trim();
@@ -1453,7 +1460,7 @@ async function showOrderForm() {
         orderProducts[idx].price = found.price;
         orderProducts[idx].customName = null;
         const priceInput = e.target.closest('tr').querySelector('.edit-product-price');
-        if (priceInput) priceInput.value = found.price;
+        if (priceInput) priceInput.value = found.price.toFixed(2);
         e.target.value = found.name;
       } else {
         orderProducts[idx].productId = null;
@@ -1473,9 +1480,9 @@ async function showOrderForm() {
   });
   document.querySelectorAll('.edit-product-price').forEach((input, idx) => {
     input.addEventListener('input', (e) => {
-      let price = parseFloat(e.target.value);
-      if (isNaN(price)) price = 0;
+      let price = normalizePrice(e.target.value);
       orderProducts[idx].price = price;
+      e.target.value = price.toFixed(2);
       calculateTotalAndRowSums();
     });
   });
