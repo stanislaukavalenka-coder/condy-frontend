@@ -1022,7 +1022,7 @@ async function showOrderDetailsModal(order, client) {
             </datalist>
           </td>
           <td><input type="number" class="edit-product-quantity" value="${p.quantity}" min="1" step="1"></td>
-          <td><input type="number" class="edit-product-price" value="${p.price}" step="0.01" min="0"></td>
+          <td><input type="number" class="edit-product-price" value="${p.price.toFixed(2)}" step="0.01" min="0"></td>
           <td class="product-sum">${sum.toFixed(2)}</td>
           <td class="product-remove"><button class="remove-edit-product" data-idx="${idx}">✖</button></td>
         </tr>
@@ -1044,7 +1044,7 @@ async function showOrderDetailsModal(order, client) {
           orderProducts[idx].price = found.price;
           orderProducts[idx].customName = null;
           const priceInput = e.target.closest('tr').querySelector('.edit-product-price');
-          if (priceInput) priceInput.value = found.price;
+if (priceInput) priceInput.value = found.price.toFixed(2);
           e.target.value = found.name;
         } else {
           orderProducts[idx].productId = null;
@@ -2405,7 +2405,7 @@ function showProductForm(product, callback) {
       <h3>${product ? 'Редактировать товар' : 'Новый товар'}</h3>
       <label>Название</label><input id="productName" value="${product ? escapeHtml(product.name) : ''}">
       <label>Категория</label><select id="productCategoryId">${cachedCategories.map(c => `<option value="${c.id}" ${product && product.categoryId === c.id ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('')}</select>
-      <label>Цена (BYN)</label><input type="number" step="0.01" id="productPrice" value="${product ? product.price : ''}">
+      <label>Цена (BYN)</label><input type="number" step="0.01" id="productPrice" value="${product ? product.price.toFixed(2) : ''}">
       <label>Описание</label><textarea id="productDescription" rows="2">${product ? escapeHtml(product.description || '') : ''}</textarea>
       <label>Активен</label><input type="checkbox" id="productActive" ${product && product.isActive ? 'checked' : 'checked'}>
       <div class="modal-buttons">
