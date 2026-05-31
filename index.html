@@ -959,7 +959,7 @@ async function loadOrdersForDate(dateStr) {
 
     html += `<div class="order-card-clickable status-${statusClass}" data-id="${o.id}">
       <b>#${o.id}</b> — ${client ? escapeHtml(client.name) : 'Неизвестный'}${isNew ? ' <span class="new-badge" style="background:#f97316; color:white; font-size:0.7rem; padding:2px 6px; border-radius:12px; margin-left:6px;">new</span>' : ''}<br>
-      💰 ${o.price} BYN | Статус: ${escapeHtml(o.status)}<br>
+      💰 ${o.price.toFixed(2)} BYN| Статус: ${escapeHtml(o.status)}<br>
       ${itemsHtml}
       ${o.details ? `📝 ${escapeHtml(o.details)}<br>` : ''}
       ${o.delivery ? `🚚 ${escapeHtml(o.delivery)}<br>` : ''}
@@ -1908,7 +1908,7 @@ function renderFinanceTab(container) {
         <td style="padding: 8px; border-bottom: 1px solid #ddd;">${escapeHtml(displayDate)}</td>
         <td style="padding: 8px; border-bottom: 1px solid #ddd;">${escapeHtml(t.type)}</td>
         <td style="padding: 8px; border-bottom: 1px solid #ddd;">${escapeHtml(t.category)}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align:right;">${t.amount} BYN</td>
+        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align:right;">${t.amount.toFixed(2)} BYN</td>
         <td style="padding: 8px; border-bottom: 1px solid #ddd;">${escapeHtml(t.comment || '')}</td>
       </tr>`;
     }
@@ -1949,7 +1949,7 @@ function renderFinanceTab(container) {
     document.getElementById('saveTransBtn').onclick = async () => {
       const type = document.getElementById('transType').value;
       const cat = document.getElementById('transCategory').value.trim();
-      const amt = parseFloat(document.getElementById('transAmount').value);
+      const amt = normalizePrice(document.getElementById('transAmount').value);
       const comm = document.getElementById('transComment').value;
       if (!cat || isNaN(amt) || amt <= 0) {
         showToast('Заполните категорию и корректную сумму', true);
@@ -2360,7 +2360,7 @@ async function renderProductsManager(container) {
       html += `<tr>
         <td>${escapeHtml(p.name)}</td>
         <td>${escapeHtml(catName)}</td>
-        <td>${p.price} BYN</td>
+        <td>${p.price.toFixed(2)} BYN</td>
         <td>${p.isActive ? '✅' : '❌'}</td>
         <td><button class="editProductBtn" data-id="${p.id}" style="width: auto;">✏️</button> <button class="deleteProductBtn" data-id="${p.id}" style="width: auto; background:#ef4444;">🗑️</button></td>
       </td>`;
@@ -2418,7 +2418,7 @@ function showProductForm(product, callback) {
   document.getElementById('saveProductBtn').onclick = async () => {
     const name = document.getElementById('productName').value.trim();
     const categoryId = parseInt(document.getElementById('productCategoryId').value);
-    const price = parseFloat(document.getElementById('productPrice').value);
+    const price = normalizePrice(document.getElementById('productPrice').value);
     const description = document.getElementById('productDescription').value.trim();
     const isActive = document.getElementById('productActive').checked;
     if (!name || isNaN(price)) { showToast('Заполните название и цену', true); return; }
