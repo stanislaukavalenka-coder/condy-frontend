@@ -482,7 +482,7 @@
 <div id="app"></div>
 
 <script>
-  function formatPriceInput(inputElement) {
+function formatPriceInput(inputElement) {
   let raw = inputElement.value.trim().replace(',', '.');
   let num = parseFloat(raw);
   if (isNaN(num)) num = 0;
@@ -2455,7 +2455,7 @@ function showProductForm(product, callback) {
       <h3>${product ? 'Редактировать товар' : 'Новый товар'}</h3>
       <label>Название</label><input id="productName" value="${product ? escapeHtml(product.name) : ''}">
       <label>Категория</label><select id="productCategoryId">${cachedCategories.map(c => `<option value="${c.id}" ${product && product.categoryId === c.id ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('')}</select>
-      <label>Цена (BYN)</label><input type="number" step="0.01" id="productPrice" value="${product ? product.price.toFixed(2) : ''}">
+      <label>Цена (BYN)</label><input type="text" id="productPrice" value="${product ? product.price.toFixed(2).replace('.', ',') : ''}" placeholder="0,00">
       <label>Описание</label><textarea id="productDescription" rows="2">${product ? escapeHtml(product.description || '') : ''}</textarea>
       <label>Активен</label><input type="checkbox" id="productActive" ${product && product.isActive ? 'checked' : 'checked'}>
       <div class="modal-buttons">
