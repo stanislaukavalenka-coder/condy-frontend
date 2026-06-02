@@ -1979,7 +1979,7 @@ function renderFinanceTab(container) {
         <label>Категория</label>
         <input id="transCategory" placeholder="Например, Заказ, Зарплата, Аренда">
         <label>Сумма (BYN)</label>
-        <input type="number" step="0.01" id="transAmount">
+        <input type="text" id="transAmount" placeholder="0,00">
         <label>Комментарий</label>
         <input id="transComment" placeholder="Необязательно">
         <div class="modal-buttons">
@@ -1992,9 +1992,9 @@ function renderFinanceTab(container) {
 
     // Добавляем обработчик blur для форматирования суммы
     const amountInput = document.getElementById('transAmount');
-    if (amountInput) {
-      amountInput.addEventListener('blur', () => formatPriceInput(amountInput));
-    }
+if (amountInput) {
+  amountInput.addEventListener('blur', () => formatPriceInput(amountInput));
+}
 
     document.getElementById('saveTransBtn').onclick = async () => {
       const type = document.getElementById('transType').value;
