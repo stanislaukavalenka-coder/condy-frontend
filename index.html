@@ -1345,15 +1345,39 @@ if (priceInput) priceInput.value = found.price.toFixed(2);
   document.getElementById('closeEditModalBtn').onclick = () => document.getElementById('editOrderModal').remove();
 
   // История изменений (заглушка)
-  document.getElementById('showHistoryBtn').onclick = () => {
-    const histContainer = document.getElementById('orderHistoryContainer');
-    if (histContainer.style.display === 'none') {
-      histContainer.innerHTML = '<div class="history-item">Функция истории изменений пока не реализована</div>';
-      histContainer.style.display = 'block';
-    } else {
-      histContainer.style.display = 'none';
+ document.getElementById('showHistoryBtn').onclick = async () => {
+  const histContainer = document.getElementById('orderHistoryContainer');
+  if (histContainer.style.display === 'block') {
+    histContainer.style.display = 'none';
+    return;
+  }
+  showSpinner();
+  const res = await apiCall(`/api/order-history/${order.id}`);
+  hideSpinner();
+  if (!res.ok) {
+    histContainer.innerHTML = '<div class="alert">Ошибка загрузки истории</div>';
+    histContainer.style.display = 'block';
+    return;
+  }
+  const history = res.data;
+  if (history.length === 0) {
+    histContainer.innerHTML = '<div class="history-item">Нет изменений</div>';
+  } else {
+    let html = '<ul style="list-style:none; padding-left:0; margin:0;">';
+    for (const h of history) {
+      const date = new Date(h.changedAt).toLocaleString();
+      html += `<li style="margin-bottom:8px; border-bottom:1px solid #eee; padding-bottom:4px;">
+        <strong>${date}</strong> (пользователь ${h.userId})<br>
+        Цена: ${h.price.toFixed(2)} BYN, Статус: ${h.status}<br>
+        Детали: ${escapeHtml(h.details || '')}<br>
+        Доставка: ${escapeHtml(h.delivery || '')}, Дата выполнения: ${h.executionDate}
+      </li>`;
     }
-  };
+    html += '</ul>';
+    histContainer.innerHTML = html;
+  }
+  histContainer.style.display = 'block';
+};
 }
 async function showClientOrdersModal(clientId) {
   const client = cachedClients.find(c => c.id == clientId);
