@@ -1352,7 +1352,7 @@ if (priceInput) priceInput.value = found.price.toFixed(2);
     return;
   }
   showSpinner();
-  const res = await apiCall(`/api/order-history/${order.id}`);
+  const res = await apiCall(`/api/order-history-full/${order.id}`);
   hideSpinner();
   if (!res.ok) {
     histContainer.innerHTML = '<div class="alert">Ошибка загрузки истории</div>';
@@ -1366,10 +1366,17 @@ if (priceInput) priceInput.value = found.price.toFixed(2);
     let html = '<ul style="list-style:none; padding-left:0; margin:0;">';
     for (const h of history) {
       const date = new Date(h.changedAt).toLocaleString();
-      html += `<li style="margin-bottom:8px; border-bottom:1px solid #eee; padding-bottom:4px;">
-        <strong>${date}</strong> (пользователь ${h.userId})<br>
-        Цена: ${h.price.toFixed(2)} BYN, Статус: ${h.status}<br>
-        Детали: ${escapeHtml(h.details || '')}<br>
+      html += `<li style="margin-bottom:12px; border-bottom:1px solid #eee; padding-bottom:8px;">
+        <strong>${date}</strong> (${escapeHtml(h.userName)})<br>
+        Цена: ${h.price.toFixed(2)} BYN, Статус: ${escapeHtml(h.status)}<br>`;
+      if (h.products && h.products.length) {
+        html += '<strong>Товары:</strong><ul style="margin:4px 0 0 16px;">';
+        for (const prod of h.products) {
+          html += `<li>${escapeHtml(prod.name)} — ${prod.quantity} шт × ${prod.price.toFixed(2)} BYN = ${(prod.quantity * prod.price).toFixed(2)} BYN</li>`;
+        }
+        html += '</ul>';
+      }
+      html += `Детали: ${escapeHtml(h.details || '')}<br>
         Доставка: ${escapeHtml(h.delivery || '')}, Дата выполнения: ${h.executionDate}
       </li>`;
     }
