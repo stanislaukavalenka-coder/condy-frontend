@@ -217,9 +217,30 @@
     line-height: 18px;
   }
 
-  /* Плавающая кнопка (скрыта, но может пригодиться) */
+  /* Плавающая кнопка */
   .fab {
-    display: none; /* скрываем плавающую кнопку */
+    position: fixed;
+    bottom: 70px;
+    right: 16px;
+    width: 48px;
+    height: 48px;
+    background: #f97316;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+    cursor: pointer;
+    z-index: 1001;
+    transition: 0.2s;
+  }
+  .fab:hover {
+    transform: scale(1.05);
+    background: #ea580c;
+  }
+  .fab span {
+    font-size: 26px;
+    color: white;
   }
 
   /* Карточка заказа */
@@ -496,7 +517,7 @@ async function apiCall(url, options = {}) {
   }
   const response = await fetch(API_BASE + url, {
     ...options,
-    credentials: 'omit',
+    credentials: 'omit',   // куки больше не нужны
     headers
   });
   let data;
@@ -554,7 +575,7 @@ async function login(email, password) {
     currentUser = { name: result.data.name, role: result.data.role, email: result.data.email };
     localStorage.setItem('loggedIn', 'true');
     localStorage.setItem('currentUser', JSON.stringify(currentUser));
-    localStorage.setItem('access_token', result.data.token);
+    localStorage.setItem('access_token', result.data.token);   // ← сохраняем токен
     renderMainApp();
   } else {
     showToast(result.data.error || 'Ошибка входа', true);
@@ -611,7 +632,7 @@ function renderLoginPage() {
 // ========== ЗАПУСК ==========
 if (localStorage.getItem('loggedIn') === 'true') {
   currentUser = JSON.parse(localStorage.getItem('currentUser'));
-  checkSession();
+  checkSession(); // проверяем, действительна ли ещё сессия на сервере
 } else {
   renderLoginPage();
 }
@@ -628,9 +649,10 @@ async function logout() {
   renderLoginPage();
 }
 
-// Синхронизация сессии между вкладками
+// Синхронизация сессии между вкладками (проверка, если в другой вкладке вышли)
 window.addEventListener('storage', (event) => {
   if (event.key === 'loggedIn' && event.newValue !== 'true') {
+    // Если в другой вкладке удалили loggedIn, то перезагружаем страницу (покажет форму входа)
     location.reload();
   }
 });
@@ -694,6 +716,7 @@ async function fetchAllOrders(force = false, silent = false) {
   if (!silent) hideSpinner();
   if (result.ok && Array.isArray(result.data)) {
     let orders = result.data.map(o => ({ ...o, id: Number(o.id) }));
+    // Удаляем дубликаты по id
     orders = orders.filter((order, index, self) => 
       index === self.findIndex(o => o.id === order.id)
     );
@@ -731,14 +754,17 @@ function showToast(message, isError = false) {
     toast = document.createElement('div');
     toast.id = 'toastMsg';
     toast.className = 'toast';
+    // Убедимся, что body существует, иначе добавим позже
     if (document.body) {
       document.body.appendChild(toast);
     } else {
+      // Если body ещё нет, ждём его (очень редкий случай)
       window.addEventListener('DOMContentLoaded', () => {
         document.body.appendChild(toast);
       });
     }
   }
+  // Если элемент всё ещё не добавлен (например, нет body), выходим
   if (!toast.parentNode) return;
   toast.textContent = message;
   toast.style.background = isError ? '#b91c1c' : '#15803d';
@@ -753,9 +779,9 @@ function renderMainApp() {
     <div style="max-width:700px; margin:0 auto;"><div id="mainContent" class="container"></div></div>
     <div class="bottom-nav">
       <button class="nav-item" data-tab="orders"><span>📦</span><span>Заказы</span></button>
-      <button class="nav-item" data-tab="recipes"><span>📖</span><span>Рецепты</span></button>
-      <button class="nav-item" data-tab="market"><span>🏪</span><span>Маркет</span></button>
-      <button class="nav-item" data-tab="finance"><span>💰</span><span>Статистика</span></button>
+      <button class="nav-item" data-tab="calculator"><span>🧮</span><span>Калькулятор</span></button>
+      <button class="nav-item" data-tab="stock"><span>📊</span><span>Склад</span></button>
+      <button class="nav-item" data-tab="finance"><span>💰</span><span>Доходы/Расходы</span></button>
       <button class="nav-item" data-tab="more"><span>☰</span><span>Ещё</span></button>
     </div>
   `;
@@ -770,13 +796,13 @@ function showTab(tabId) {
   document.querySelectorAll('.nav-item').forEach(btn => btn.classList.toggle('active', btn.getAttribute('data-tab') === tabId));
   const container = document.getElementById('mainContent');
   if (tabId === 'orders') renderOrdersTab(container);
-  else if (tabId === 'recipes') renderRecipesTab(container);
-  else if (tabId === 'market') renderMarketTab(container);
+  else if (tabId === 'calculator') renderCalculatorTab(container);
+  else if (tabId === 'stock') renderStockTab(container);
   else if (tabId === 'finance') renderFinanceTab(container);
   else if (tabId === 'more') renderMoreTab(container);
 }
 
-// =========================== 4. ЗАКАЗЫ ===========================
+// =========================== 4. ЗАКАЗЫ (исправленные, безопасные) ===========================
 function renderOrdersTab(container) {
   container.innerHTML = `
     <h1>📦 Заказы</h1>
@@ -786,10 +812,6 @@ function renderOrdersTab(container) {
       <button id="nextMonth" class="secondary" style="width:auto;">▶</button>
     </div>
     <div id="calendarGrid" class="calendar-grid"></div>
-    <div style="display:flex; gap:12px; margin:12px 0;">
-      <button id="addOrderBtn" class="secondary" style="width:auto;">➕ Добавить заказ</button>
-      <button id="addProductionBtn" class="secondary" style="width:auto;">🛠️ Добавить производство</button>
-    </div>
     <div id="ordersList"></div>
   `;
   document.getElementById('prevMonth').onclick = () => {
@@ -808,16 +830,24 @@ function renderOrdersTab(container) {
     }
     renderCalendar();
   };
-  // Кнопка "Добавить заказ" вызывает showOrderForm()
-  document.getElementById('addOrderBtn').onclick = () => showOrderForm();
-  // Кнопка "Добавить производство" – пока заглушка
-  document.getElementById('addProductionBtn').onclick = () => showToast('Функция в разработке');
-  
-  if (!selectedDate) {
-    const today = new Date();
-    selectedDate = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  const fabDiv = document.getElementById('fabContainer');
+  if (fabDiv) {
+    fabDiv.innerHTML = `<div class="fab" id="fabBtn"><span>+</span></div>`;
+    document.getElementById('fabBtn').onclick = () => showOrderForm();
+  } else {
+    const fab = document.createElement('div');
+    fab.id = 'fabBtn';
+    fab.className = 'fab';
+    fab.innerHTML = '<span>+</span>';
+    document.body.appendChild(fab);
+    fab.onclick = () => showOrderForm();
   }
+  if (!selectedDate) {
+  const today = new Date();
+  selectedDate = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+}
   renderCalendar();
+
 }
 
 async function renderCalendar() {
@@ -832,16 +862,16 @@ async function renderCalendar() {
   const today = new Date();
   const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
   
-  const sumMap = new Map();
-  (cachedOrders || []).forEach(o => {
-    if (o && o.executionDate && o.price) {
-      const ds = o.executionDate;
-      const priceNum = parseFloat(o.price);
-      if (!isNaN(priceNum)) {
-        sumMap.set(ds, (sumMap.get(ds) || 0) + priceNum);
-      }
+ const sumMap = new Map();
+(cachedOrders || []).forEach(o => {
+  if (o && o.executionDate && o.price) {
+    const ds = o.executionDate;
+    const priceNum = parseFloat(o.price);
+    if (!isNaN(priceNum)) {
+      sumMap.set(ds, (sumMap.get(ds) || 0) + priceNum);
     }
-  });
+  }
+});
 
   let day = 1;
   for (let i = 0; i < totalCells; i++) {
@@ -881,7 +911,7 @@ async function loadOrdersForDate(dateStr) {
   console.log('loadOrdersForDate вызвана для даты', dateStr);
   if (!cachedOrders.length) await fetchAllOrders();
   if (!cachedClients.length) await fetchClients();
-  if (!cachedProducts.length) await fetchProducts();
+  if (!cachedProducts.length) await fetchProducts(); // нужно для названий товаров
 
   const clientMap = {};
   (cachedClients || []).forEach(c => clientMap[c.id] = c);
@@ -906,7 +936,7 @@ async function loadOrdersForDate(dateStr) {
     }
   });
 
-  let html = `<div class="card"><h3>📅 Заказы на ${formatDateForDisplay(dateStr)}</h3>`;
+  let html = `<div class="card"><h3>📅 Заказы на ${escapeHtml(dateStr)}</h3>`;
   for (const o of ordersOnDate) {
     const client = clientMap[o.clientId];
     let statusClass = '';
@@ -915,12 +945,14 @@ async function loadOrdersForDate(dateStr) {
     else if (o.status === 'завершен') statusClass = 'completed';
     else if (o.status === 'отменён') statusClass = 'canceled';
 
+    // Помечаем нового клиента (если у него только один заказ)
     let isNew = false;
     if (client && client.id) {
       const clientOrdersCount = cachedOrders.filter(order => order.clientId == client.id).length;
       isNew = (clientOrdersCount === 1);
     }
 
+    // Строим список товаров для этого заказа
     const items = itemsMap[o.id] || [];
     let itemsHtml = '';
     if (items.length) {
@@ -933,7 +965,7 @@ async function loadOrdersForDate(dateStr) {
 
     html += `<div class="order-card-clickable status-${statusClass}" data-id="${o.id}">
       <b>#${o.id}</b> — ${client ? escapeHtml(client.name) : 'Неизвестный'}${isNew ? ' <span class="new-badge" style="background:#f97316; color:white; font-size:0.7rem; padding:2px 6px; border-radius:12px; margin-left:6px;">new</span>' : ''}<br>
-      💰 ${o.price.toFixed(2)} BYN | Статус: ${escapeHtml(o.status)}<br>
+      💰 ${o.price.toFixed(2)} BYN| Статус: ${escapeHtml(o.status)}<br>
       ${itemsHtml}
       ${o.details ? `📝 ${escapeHtml(o.details)}<br>` : ''}
       ${o.delivery ? `🚚 ${escapeHtml(o.delivery)}<br>` : ''}
@@ -996,7 +1028,7 @@ async function showOrderDetailsModal(order, client) {
             </datalist>
           </td>
           <td><input type="number" class="edit-product-quantity" value="${p.quantity}" min="1" step="1"></td>
-          <td><input type="text" class="edit-product-price" value="${p.price.toFixed(2).replace('.', ',')}" placeholder="0,00"></td>
+          <td><input type="number" class="edit-product-price" value="${p.price.toFixed(2)}" step="0.01" min="0"></td>
           <td class="product-sum">${sum.toFixed(2)}</td>
           <td class="product-remove"><button class="remove-edit-product" data-idx="${idx}">✖</button></td>
         </tr>
@@ -1018,9 +1050,7 @@ async function showOrderDetailsModal(order, client) {
           orderProducts[idx].price = found.price;
           orderProducts[idx].customName = null;
           const priceInput = e.target.closest('tr').querySelector('.edit-product-price');
-          if (priceInput) {
-            priceInput.value = found.price.toFixed(2).replace('.', ',');
-          }
+if (priceInput) priceInput.value = found.price.toFixed(2);
           e.target.value = found.name;
         } else {
           orderProducts[idx].productId = null;
@@ -1039,19 +1069,19 @@ async function showOrderDetailsModal(order, client) {
       });
     });
   document.querySelectorAll('.edit-product-price').forEach((input, idx) => {
-    input.addEventListener('input', (e) => {
-      let price = normalizePrice(e.target.value);
-      orderProducts[idx].price = price;
-      e.target.value = price.toFixed(2).replace('.', ',');
-      calculateTotalAndRowSums();
-    });
-    input.addEventListener('blur', (e) => {
-      formatPriceInput(e.target);
-      let price = normalizePrice(e.target.value);
-      orderProducts[idx].price = price;
-      calculateTotalAndRowSums();
-    });
+  input.addEventListener('input', (e) => {
+    let price = normalizePrice(e.target.value);
+    orderProducts[idx].price = price;
+    e.target.value = price.toFixed(2);
+    calculateTotalAndRowSums();
   });
+  input.addEventListener('blur', (e) => {
+    formatPriceInput(e.target);
+    let price = normalizePrice(e.target.value);
+    orderProducts[idx].price = price;
+    calculateTotalAndRowSums();
+  });
+});
     document.querySelectorAll('.remove-edit-product').forEach(btn => {
       btn.addEventListener('click', () => {
         const idx = parseInt(btn.dataset.idx);
@@ -1314,7 +1344,7 @@ async function showOrderDetailsModal(order, client) {
 
   document.getElementById('closeEditModalBtn').onclick = () => document.getElementById('editOrderModal').remove();
 
-  // История изменений
+  // История изменений (заглушка)
  document.getElementById('showHistoryBtn').onclick = async () => {
   const histContainer = document.getElementById('orderHistoryContainer');
   if (histContainer.style.display === 'block') {
@@ -1451,7 +1481,7 @@ async function showOrderForm() {
           </datalist>
         </td>
         <td><input type="number" class="edit-product-quantity" value="${p.quantity}" min="1" step="1"></td>
-        <td><input type="text" class="edit-product-price" value="${p.price.toFixed(2).replace('.', ',')}" placeholder="0,00"></td>
+        <td><input type="number" class="edit-product-price" value="${p.price}" step="0.01" min="0"></td>
         <td class="product-sum">${sum.toFixed(2)}</td>
         <td class="product-remove"><button class="remove-edit-product" data-idx="${idx}">✖</button></td>
       </tr>
@@ -1473,9 +1503,7 @@ async function showOrderForm() {
         orderProducts[idx].price = found.price;
         orderProducts[idx].customName = null;
         const priceInput = e.target.closest('tr').querySelector('.edit-product-price');
-        if (priceInput) {
-          priceInput.value = found.price.toFixed(2).replace('.', ',');
-        }
+        if (priceInput) priceInput.value = found.price.toFixed(2);
         e.target.value = found.name;
       } else {
         orderProducts[idx].productId = null;
@@ -1497,7 +1525,7 @@ async function showOrderForm() {
     input.addEventListener('input', (e) => {
       let price = normalizePrice(e.target.value);
       orderProducts[idx].price = price;
-      e.target.value = price.toFixed(2).replace('.', ',');
+      e.target.value = price.toFixed(2);
       calculateTotalAndRowSums();
     });
   });
@@ -1619,7 +1647,7 @@ async function showOrderForm() {
     }
 
     const totalDisplay = document.getElementById('orderPriceDisplay');
-    const totalPrice = normalizePrice(totalDisplay ? totalDisplay.textContent : '0');
+    const totalPrice = parseFloat(totalDisplay ? totalDisplay.textContent : '0');
     if (isNaN(totalPrice) || totalPrice <= 0) {
       showToast('Некорректная сумма заказа', true);
       return;
@@ -1655,9 +1683,9 @@ async function showOrderForm() {
       const orderRes = await apiCall('/api/orders', {
   method: 'POST',
   body: JSON.stringify({
-    clientName: clientName,
-    clientPhone: clientPhone,
-    clientAddress: clientSocial,
+    clientName: clientName,     // вместо clientId
+    clientPhone: clientPhone,   // вместо clientId
+    clientAddress: clientSocial,// вместо clientId
     price: totalPrice,
     status: finalStatus,
     details: details,
@@ -1708,150 +1736,75 @@ async function showOrderForm() {
 
   document.getElementById('closeModalBtn').onclick = () => document.getElementById('orderModal').remove();
 }
+// =========================== 6. КАЛЬКУЛЯТОР ===========================
+function renderCalculatorTab(container) {
+  container.innerHTML = `<h1>🧮 Калькулятор рецептов</h1>
+    <label>📖 Рецепт</label><select id="recipeSelect"></select>
+    <label>⚖️ Желаемый вес (г)</label><input type="number" id="desiredWeight" value="500">
+    <button id="calcBtn">Рассчитать</button>
+    <div id="calcResult"></div>
+    <button id="writeOffBtn" style="display:none;">Списать</button>`;
 
-// =========================== РЕЦЕПТЫ ===========================
-function renderRecipesTab(container) {
-  container.innerHTML = `
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-      <h1 style="margin: 0;">📖 Рецепты</h1>
-      <button id="addRecipeBtn" class="secondary" style="width: auto;">➕ Добавить рецепт</button>
-    </div>
-    <div id="recipesList"></div>
-  `;
-
-  // Загрузка списка рецептов
-  async function loadRecipes() {
+  // Загрузка списка рецептов через API
+  (async () => {
     const result = await apiCall('/api/recipes');
-    const listDiv = document.getElementById('recipesList');
     if (result.ok && Array.isArray(result.data)) {
-      if (result.data.length === 0) {
-        listDiv.innerHTML = '<div class="card">Нет рецептов</div>';
-        return;
-      }
-      let html = '<div class="card"><table style="width:100%;"><thead><tr><th>ID</th><th>Название</th><th>Выход (г)</th></tr></thead><tbody>';
-      result.data.forEach(r => {
-        html += `<tr class="recipe-row" data-id="${r.id}" style="cursor:pointer;"><td>${r.id}</td><td>${escapeHtml(r.name)}</td><td>${r.yield}</td></tr>`;
-      });
-      html += `</tbody></table></div>`;
-      listDiv.innerHTML = html;
-      // Обработчик клика на рецепт – открыть модалку с деталями (пока заглушка)
-      document.querySelectorAll('.recipe-row').forEach(row => {
-        row.addEventListener('click', () => {
-          const recipeId = row.getAttribute('data-id');
-          showRecipeModal(recipeId);
-        });
-      });
+      const select = document.getElementById('recipeSelect');
+      select.innerHTML = '<option value="">-- Выберите --</option>';
+      result.data.forEach(r => select.add(new Option(`${r.name} (выход ${r.yield}г)`, r.id)));
     } else {
-      listDiv.innerHTML = '<div class="alert">Ошибка загрузки рецептов</div>';
+      showToast('Ошибка загрузки рецептов', true);
     }
-  }
+  })();
 
-  // Модальное окно просмотра рецепта (заглушка)
-  async function showRecipeModal(recipeId) {
-    // Загружаем рецепт и его состав
-    const result = await apiCall(`/api/recipes/${recipeId}`); // если есть эндпоинт для одного рецепта
-    // Если нет, можно использовать общий список, но пока заглушка
-    showToast('Функция просмотра рецепта в разработке');
-  }
-
-  // Кнопка добавления рецепта – открывает модальное окно (как в меню)
-  document.getElementById('addRecipeBtn').onclick = () => {
-    // Используем существующую функцию renderAddRecipeForm в модалке
-    const containerModal = document.createElement('div');
-    containerModal.className = 'modal';
-    containerModal.onclick = (e) => { if (e.target === containerModal) containerModal.remove(); };
-    containerModal.innerHTML = `<div class="modal-content" style="max-width: 600px;"></div>`;
-    document.body.appendChild(containerModal);
-    const innerContainer = containerModal.querySelector('.modal-content');
-    // Используем существующую функцию, которая рендерит форму добавления рецепта
-    // Но она обычно рендерит в контейнер, а нам нужно в модалку.
-    // Можно скопировать содержимое renderAddRecipeForm сюда, но для простоты вызовем её с параметром.
-    // Однако renderAddRecipeForm ожидает container, а не модалку.
-    // Просто скопируем часть кода из renderAddRecipeForm в эту модалку.
-    // Для экономии времени, я просто создам упрощённую версию.
-    innerContainer.innerHTML = `
-      <h3>📝 Добавить рецепт</h3>
-      <label>Название</label><input id="newRecipeName" placeholder="Название рецепта">
-      <label>Выход (г)</label><input type="number" id="newRecipeYield" placeholder="Выход">
-      <label>Ингредиенты</label>
-      <div id="recipeIngredientsContainer"></div>
-      <button type="button" id="addIngredientRowBtn" class="add-row" style="margin-top:4px;">+ Добавить ингредиент</button>
-      <label>Комментарии</label>
-      <textarea id="recipeComments" rows="3" placeholder="Инструкции по приготовлению, заметки"></textarea>
-      <div class="modal-buttons">
-        <button id="saveNewRecipeBtn">Сохранить</button>
-        <button id="closeNewRecipeBtn" class="secondary">Отмена</button>
-      </div>
-    `;
-    // Функция добавления строки ингредиента
-    const addRow = () => {
-      const container = document.getElementById('recipeIngredientsContainer');
-      const div = document.createElement('div');
-      div.className = 'ingredient-row';
-      div.innerHTML = `<input type="text" class="ingredient-name" placeholder="Название ингредиента" style="width:45%;"> <input type="number" class="ingredient-amount" placeholder="Кол-во (г)" style="width:45%;"> <button class="remove-ingredient" style="width:auto;">✖</button>`;
-      container.appendChild(div);
-      div.querySelector('.remove-ingredient').onclick = () => div.remove();
-    };
-    // Начальные строки
-    for (let i=0; i<2; i++) addRow();
-    document.getElementById('addIngredientRowBtn').onclick = addRow;
-    // Сохранение
-    document.getElementById('saveNewRecipeBtn').onclick = async () => {
-      const name = document.getElementById('newRecipeName').value.trim();
-      const yieldG = parseFloat(document.getElementById('newRecipeYield').value);
-      if (!name || isNaN(yieldG) || yieldG <= 0) {
-        showToast('Введите название и выход', true);
-        return;
-      }
-      const ingredients = [];
-      document.querySelectorAll('#recipeIngredientsContainer .ingredient-row').forEach(row => {
-        const ingName = row.querySelector('.ingredient-name').value.trim();
-        const amt = parseFloat(row.querySelector('.ingredient-amount').value);
-        if (ingName && !isNaN(amt) && amt > 0) ingredients.push({ name: ingName, amountG: amt });
-      });
-      if (ingredients.length === 0) {
-        showToast('Добавьте ингредиенты', true);
-        return;
-      }
-      const comments = document.getElementById('recipeComments').value.trim();
+  document.getElementById('calcBtn').onclick = async () => {
+    const rid = document.getElementById('recipeSelect').value;
+    const weight = parseFloat(document.getElementById('desiredWeight').value);
+    if (!rid || !weight) {
+      showToast('Выберите рецепт и вес', true);
+      return;
+    }
+    showSpinner();
+    const result = await apiCall('/api/recipes/calculate', {
+      method: 'POST',
+      body: JSON.stringify({ recipeId: parseInt(rid), desiredWeight: weight })
+    });
+    hideSpinner();
+    if (!result.ok || result.data.error) {
+      document.getElementById('calcResult').innerHTML = `<div class="alert">${result.data.error || 'Ошибка расчёта'}</div>`;
+      return;
+    }
+    const data = result.data;
+    let html = `<div class="card"><div>📐 Коэффициент: ${data.coefficient.toFixed(3)}</div>
+      <table><thead><tr><th>Ингредиент</th><th>Нужно (г)</th></tr></thead><tbody>`;
+    data.ingredients.forEach(ing => html += `<tr><td>${escapeHtml(ing.name)}</td><td class="amount">${Math.round(ing.neededGrams*10)/10}</td></tr>`);
+    html += `</tbody></table></div>`;
+    document.getElementById('calcResult').innerHTML = html;
+    document.getElementById('writeOffBtn').style.display = 'block';
+    document.getElementById('writeOffBtn').onclick = async () => {
       showSpinner();
-      const result = await apiCall('/api/recipes', {
+      const writeOffResult = await apiCall('/api/stock/writeoff', {
         method: 'POST',
-        body: JSON.stringify({ name, yield: yieldG, ingredients, comments })
+        body: JSON.stringify({ items: data.ingredients, comment: "Списание через веб" })
       });
       hideSpinner();
-      if (result.ok) {
-        showToast(result.data.message || 'Рецепт добавлен');
-        containerModal.remove();
-        loadRecipes();
+      if (writeOffResult.ok) {
+        showToast(writeOffResult.data.message || 'Списание выполнено');
       } else {
-        showToast(result.data.error || 'Ошибка добавления', true);
+        showToast(writeOffResult.data.error || 'Ошибка списания', true);
       }
     };
-    document.getElementById('closeNewRecipeBtn').onclick = () => containerModal.remove();
   };
-
-  loadRecipes();
 }
 
-// =========================== МАРКЕТ (заглушка) ===========================
-function renderMarketTab(container) {
-  container.innerHTML = `
-    <h1>🏪 Маркет</h1>
-    <div class="card">
-      <p>Раздел в разработке. Здесь будет касса и история продаж.</p>
-    </div>
-  `;
-}
-
-// =========================== 7. СКЛАД (перенесён в меню) ===========================
+// =========================== 7. СКЛАД ===========================
 async function renderStockTab(container) {
   container.innerHTML = `<h1>📊 Склад</h1><button id="refreshStockBtn" class="secondary">Обновить</button>
     <div id="stockTable" style="margin-top:12px;"></div>
     <div class="card"><h3>✏️ Одиночная операция</h3>
     <label>Материал</label><select id="stockMaterial"></select>
     <label>Операция</label><select id="stockOperation"><option>Приход</option><option>Расход</option></select>
-    <label>Количество</label><input type="text" id="stockQty" placeholder="0,00">
+    <label>Количество</label><input type="number" id="stockQty" step="any">
     <label>Комментарий</label><input type="text" id="stockComment">
     <button id="stockExecute">Выполнить</button></div>`;
 
@@ -1887,14 +1840,14 @@ async function renderStockTab(container) {
     stock.forEach(m => sel.add(new Option(escapeHtml(m.name), m.name)));
   };
 
-  await refreshStockTable();
+  await refreshStockTable(); // первая загрузка
   document.getElementById('refreshStockBtn').onclick = refreshStockTable;
 
   // Выполнение одиночной операции
   document.getElementById('stockExecute').onclick = async () => {
     const mat = document.getElementById('stockMaterial').value;
     const op = document.getElementById('stockOperation').value;
-    const qty = normalizePrice(document.getElementById('stockQty').value);
+    const qty = parseFloat(document.getElementById('stockQty').value);
     const comm = document.getElementById('stockComment').value;
     if (!mat || isNaN(qty) || qty <= 0) {
       showToast('Заполните поля: материал, количество >0', true);
@@ -1908,7 +1861,7 @@ async function renderStockTab(container) {
     hideSpinner();
     if (result.ok) {
       showToast(result.data.message || 'Операция выполнена');
-      refreshStockTable();
+      refreshStockTable(); // обновить таблицу
     } else {
       showToast(result.data.error || 'Ошибка выполнения', true);
     }
@@ -1916,7 +1869,8 @@ async function renderStockTab(container) {
 }
 
 
-// =========================== 8. СТАТИСТИКА ===========================
+
+// =========================== 8. ДОХОДЫ/РАСХОДЫ ===========================
 
 
 function formatDate(dateStr) {
@@ -1934,14 +1888,14 @@ function renderFinanceTab(container) {
   const todayStr = `${year}-${String(month+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
 
   container.innerHTML = `
-    <h1>📊 Статистика</h1>
+    <h1>💰 Доходы/Расходы</h1>
     <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:16px;">
       <input type="date" id="startDate" value="${firstDayStr}" style="flex:1;">
       <input type="date" id="endDate" value="${todayStr}" style="flex:1;">
       <button id="filterBtn" class="secondary" style="width:auto;">Показать</button>
     </div>
-    <div id="financeSummary"></div>
-    <div id="financeList" style="max-height:400px; overflow-y:auto;"></div>
+    <div id="summary"></div>
+    <div id="transactionsList" style="max-height:400px; overflow-y:auto;"></div>
     <button id="addTransactionBtn">➕ Добавить операцию</button>
   `;
 
@@ -1955,7 +1909,7 @@ function renderFinanceTab(container) {
     hideSpinner();
 
     if (!result.ok) {
-      document.getElementById('financeSummary').innerHTML = '<div class="alert">Ошибка загрузки данных</div>';
+      document.getElementById('summary').innerHTML = '<div class="alert">Ошибка загрузки данных</div>';
       return;
     }
 
@@ -1973,7 +1927,7 @@ function renderFinanceTab(container) {
     const totalExpense = transactions.filter(t => t.type === 'Расход').reduce((s, t) => s + t.amount, 0);
     const profit = totalIncome - totalExpense;
 
-    document.getElementById('financeSummary').innerHTML = `
+    document.getElementById('summary').innerHTML = `
       <div class="card">
         📊 <strong>Доходы:</strong> ${totalIncome.toFixed(2)} BYN<br>
         📉 <strong>Расходы:</strong> ${totalExpense.toFixed(2)} BYN<br>
@@ -1981,7 +1935,7 @@ function renderFinanceTab(container) {
       </div>
     `;
 
-    const listDiv = document.getElementById('financeList');
+    const listDiv = document.getElementById('transactionsList');
     if (transactions.length === 0) {
       listDiv.innerHTML = '<div class="card">📭 Нет операций за выбранный период</div>';
       return;
@@ -2036,10 +1990,11 @@ function renderFinanceTab(container) {
     `;
     document.body.appendChild(modal);
 
+    // Добавляем обработчик blur для форматирования суммы
     const amountInput = document.getElementById('transAmount');
-    if (amountInput) {
-      amountInput.addEventListener('blur', () => formatPriceInput(amountInput));
-    }
+if (amountInput) {
+  amountInput.addEventListener('blur', () => formatPriceInput(amountInput));
+}
 
     document.getElementById('saveTransBtn').onclick = async () => {
       const type = document.getElementById('transType').value;
@@ -2059,7 +2014,7 @@ function renderFinanceTab(container) {
       if (result.ok) {
         showToast('Операция добавлена');
         modal.remove();
-        loadData();
+        loadData(); // обновляем список
       } else {
         showToast(result.data.error || 'Ошибка добавления', true);
       }
@@ -2067,7 +2022,6 @@ function renderFinanceTab(container) {
     document.getElementById('closeTransBtn').onclick = () => modal.remove();
   };
 }
-
 // =========================== 9. ВКЛАДКА "ЕЩЁ" ===========================
 function renderMoreTab(container) {
   if (!document.getElementById('slideMenuOverlay')) {
@@ -2083,8 +2037,8 @@ function renderMoreTab(container) {
       <button id="menuAddRecipeBtn" class="secondary">📝 Добавить рецепт</button>
       <button id="menuAddIngredientBtn" class="secondary">🧂 Добавить ингредиент</button>
       <button id="menuHistoryOrdersBtn" class="secondary">📜 История заказов</button>
-      <button id="menuStockBtn" class="secondary">📊 Склад</button>
-      <button id="menuProductsBtn" class="secondary">🍰 Товары</button>
+      <button id="menuCategoriesBtn" class="secondary">📂 Категории</button>
+<button id="menuProductsBtn" class="secondary">🍰 Товары</button>
       <button id="menuMassBatchBtn" class="secondary">📦 Массовые операции</button>
       ${currentUser && currentUser.role === 'admin' ? '<button id="menuUsersBtn" class="secondary">👥 Пользователи</button>' : ''}
       <button id="logoutBtn" class="secondary" style="background:#ef4444;">🚪 Выйти</button>
@@ -2096,18 +2050,19 @@ function renderMoreTab(container) {
     document.getElementById('menuClientsBtn').onclick = () => { lastMoreSection='clients'; renderClientsManager(container); closeMenu(); };
     document.getElementById('menuAddRecipeBtn').onclick = () => { lastMoreSection='addRecipe'; renderAddRecipeForm(container); closeMenu(); };
     document.getElementById('menuAddIngredientBtn').onclick = () => { lastMoreSection='addIngredient'; renderAddIngredientForm(container); closeMenu(); };
+    document.getElementById('menuCategoriesBtn').onclick = () => { renderCategoriesManager(container); closeMenu(); };
+document.getElementById('menuProductsBtn').onclick = () => { renderProductsManager(container); closeMenu(); };
     document.getElementById('menuHistoryOrdersBtn').onclick = () => { lastMoreSection='historyOrders'; renderHistoryOrders(container); closeMenu(); };
-    document.getElementById('menuStockBtn').onclick = () => { renderStockTab(container); closeMenu(); };
-    document.getElementById('menuProductsBtn').onclick = () => { renderProductsManager(container); closeMenu(); };
     document.getElementById('menuMassBatchBtn').onclick = () => { lastMoreSection='massBatch'; renderMassBatch(container); closeMenu(); };
     if (currentUser && currentUser.role === 'admin') {
       document.getElementById('menuUsersBtn').onclick = () => { lastMoreSection='users'; renderUsersManager(container); closeMenu(); };
     }
     
+    // Кнопка выхода – используем адаптированную функцию logout()
     const logoutBtn = document.getElementById('logoutBtn');
     if (logoutBtn) {
       logoutBtn.onclick = async () => {
-        await logout();
+        await logout();   // logout уже адаптирован (очищает куки, localStorage, вызывает /api/logout)
       };
     }
     
@@ -2181,6 +2136,7 @@ async function renderClientsManager(container) {
     html += `</tbody></table>`;
     tableContainer.innerHTML = html;
 
+    // Обработчик клика по строке – открыть модалку с редактированием
     document.querySelectorAll('.client-row').forEach(row => {
       row.addEventListener('click', () => {
         const clientId = parseInt(row.getAttribute('data-id'));
@@ -2268,9 +2224,11 @@ async function renderClientsManager(container) {
     if (result.ok) {
       showToast('Клиент обновлён');
       document.getElementById('clientEditModal').remove();
+      // Очищаем кэш клиентов и перезагружаем
       sessionStorage.removeItem('cachedClients');
       cachedClients = [];
       await fetchClients(true);
+      // Обновляем список клиентов в текущей вкладке
       const container = document.getElementById('mainContent');
       renderClientsManager(container);
     } else {
@@ -2317,11 +2275,13 @@ function showClientForm(client, callback) {
     showSpinner();
     let result;
     if (client) {
+      // Обновление существующего клиента
       result = await apiCall(`/api/clients/${client.id}`, {
         method: 'PUT',
         body: JSON.stringify({ name, phone, address, notes })
       });
     } else {
+      // Создание нового клиента
       result = await apiCall('/api/clients', {
         method: 'POST',
         body: JSON.stringify({ name, phone, address, notes })
@@ -2332,6 +2292,7 @@ function showClientForm(client, callback) {
     if (result.ok) {
       showToast(client ? 'Клиент обновлён' : 'Клиент создан');
       modal.remove();
+      // Очищаем кэш клиентов и перезагружаем
       sessionStorage.removeItem('cachedClients');
       cachedClients = [];
       await fetchClients(true);
@@ -2344,11 +2305,85 @@ function showClientForm(client, callback) {
   document.getElementById('closeClientBtn').onclick = () => modal.remove();
 }
 
-// Убраны категории (функции удалены)
+// ========== УПРАВЛЕНИЕ КАТЕГОРИЯМИ ==========
+async function renderCategoriesManager(container) {
+  if (!cachedCategories) await fetchCategories();
+  container.innerHTML = `
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 style="margin: 0;">📂 Категории товаров</h3>
+        <button id="newCategoryBtn" class="secondary" style="width: auto;">➕ Добавить категорию</button>
+      </div>
+      <input type="text" id="categorySearchInput" placeholder="🔍 Поиск категории..." style="margin-bottom: 12px;">
+      <div id="categoriesTableContainer"></div>
+    </div>
+  `;
+  const searchInput = document.getElementById('categorySearchInput');
+  const tableContainer = document.getElementById('categoriesTableContainer');
+  function renderFilteredCategories() {
+    const searchText = searchInput.value.trim().toLowerCase();
+    let filtered = cachedCategories.filter(c => c.name.toLowerCase().includes(searchText));
+    if (filtered.length === 0) {
+      tableContainer.innerHTML = '<p style="padding: 12px; text-align: center;">Категории не найдены</p>';
+      return;
+    }
+    let html = `<table style="width:100%; border-collapse: collapse;">
+      <thead><tr><th>Название</th><th></th></tr></thead><tbody>`;
+    filtered.forEach(c => {
+      html += `<tr>
+        <td>${escapeHtml(c.name)}</td>
+        <td><button class="editCategoryBtn" data-id="${c.id}" style="width: auto;">✏️</button> <button class="deleteCategoryBtn" data-id="${c.id}" style="width: auto; background:#ef4444;">🗑️</button></td>
+      </tr>`;
+    });
+    html += `</tbody></table>`;
+    tableContainer.innerHTML = html;
+    document.querySelectorAll('.editCategoryBtn').forEach(btn => {
+      btn.onclick = () => editCategory(parseInt(btn.dataset.id));
+    });
+    document.querySelectorAll('.deleteCategoryBtn').forEach(btn => {
+      btn.onclick = async () => {
+        if (!confirm('Удалить категорию? Товары этой категории останутся без категории.')) return;
+        const res = await apiCall(`/api/categories/${btn.dataset.id}`, { method: 'DELETE' });
+        if (res.ok) {
+          showToast('Категория удалена');
+          await fetchCategories(true);
+          renderFilteredCategories();
+        } else showToast(res.data.error || 'Ошибка', true);
+      };
+    });
+  }
+  searchInput.addEventListener('input', renderFilteredCategories);
+  renderFilteredCategories();
+  document.getElementById('newCategoryBtn').onclick = () => {
+    const name = prompt('Введите название категории:');
+    if (!name) return;
+    apiCall('/api/categories', { method: 'POST', body: JSON.stringify({ name }) }).then(async res => {
+      if (res.ok) {
+        showToast('Категория добавлена');
+        await fetchCategories(true);
+        renderFilteredCategories();
+      } else showToast(res.data.error || 'Ошибка', true);
+    });
+  };
+}
+async function editCategory(id) {
+  const cat = cachedCategories.find(c => c.id === id);
+  if (!cat) return;
+  const newName = prompt('Новое название категории:', cat.name);
+  if (!newName || newName === cat.name) return;
+  const res = await apiCall(`/api/categories/${id}`, { method: 'PUT', body: JSON.stringify({ name: newName }) });
+  if (res.ok) {
+    showToast('Категория обновлена');
+    await fetchCategories(true);
+    const container = document.getElementById('mainContent');
+    renderCategoriesManager(container);
+  } else showToast(res.data.error || 'Ошибка', true);
+}
 
 // ========== УПРАВЛЕНИЕ ТОВАРАМИ ==========
 async function renderProductsManager(container) {
   if (!cachedProducts) await fetchProducts();
+  if (!cachedCategories) await fetchCategories();
   container.innerHTML = `
     <div class="card">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
@@ -2369,14 +2404,16 @@ async function renderProductsManager(container) {
       return;
     }
     let html = `<table style="width:100%; border-collapse: collapse;">
-      <thead><tr><th>Название</th><th>Цена</th><th>Активен</th><th></th></tr></thead><tbody>`;
+      <thead><tr><th>Название</th><th>Категория</th><th>Цена</th><th>Активен</th><th></th></tr></thead><tbody>`;
     filtered.forEach(p => {
+      const catName = cachedCategories.find(c => c.id === p.categoryId)?.name || '—';
       html += `<tr>
         <td>${escapeHtml(p.name)}</td>
+        <td>${escapeHtml(catName)}</td>
         <td>${p.price.toFixed(2)} BYN</td>
         <td>${p.isActive ? '✅' : '❌'}</td>
         <td><button class="editProductBtn" data-id="${p.id}" style="width: auto;">✏️</button> <button class="deleteProductBtn" data-id="${p.id}" style="width: auto; background:#ef4444;">🗑️</button></td>
-      </tr>`;
+      </td>`;
     });
     html += `</tbody></table>`;
     tableContainer.innerHTML = html;
@@ -2417,6 +2454,7 @@ function showProductForm(product, callback) {
     <div class="modal-content">
       <h3>${product ? 'Редактировать товар' : 'Новый товар'}</h3>
       <label>Название</label><input id="productName" value="${product ? escapeHtml(product.name) : ''}">
+      <label>Категория</label><select id="productCategoryId">${cachedCategories.map(c => `<option value="${c.id}" ${product && product.categoryId === c.id ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('')}</select>
       <label>Цена (BYN)</label><input type="text" id="productPrice" value="${product ? product.price.toFixed(2).replace('.', ',') : ''}" placeholder="0,00">
       <label>Описание</label><textarea id="productDescription" rows="2">${product ? escapeHtml(product.description || '') : ''}</textarea>
       <label>Активен</label><input type="checkbox" id="productActive" ${product && product.isActive ? 'checked' : 'checked'}>
@@ -2428,6 +2466,7 @@ function showProductForm(product, callback) {
   `;
   document.body.appendChild(modal);
 
+  // Добавляем обработчик blur для поля цены (форматирование с запятой и двумя знаками)
   const priceInput = document.getElementById('productPrice');
   if (priceInput) {
     priceInput.addEventListener('blur', () => formatPriceInput(priceInput));
@@ -2435,6 +2474,7 @@ function showProductForm(product, callback) {
 
   document.getElementById('saveProductBtn').onclick = async () => {
     const name = document.getElementById('productName').value.trim();
+    const categoryId = parseInt(document.getElementById('productCategoryId').value);
     const price = normalizePrice(document.getElementById('productPrice').value);
     const description = document.getElementById('productDescription').value.trim();
     const isActive = document.getElementById('productActive').checked;
@@ -2442,9 +2482,9 @@ function showProductForm(product, callback) {
     showSpinner();
     let result;
     if (product) {
-      result = await apiCall(`/api/products/${product.id}`, { method: 'PUT', body: JSON.stringify({ name, price, description, isActive }) });
+      result = await apiCall(`/api/products/${product.id}`, { method: 'PUT', body: JSON.stringify({ name, categoryId, price, description, isActive }) });
     } else {
-      result = await apiCall('/api/products', { method: 'POST', body: JSON.stringify({ name, price, description }) });
+      result = await apiCall('/api/products', { method: 'POST', body: JSON.stringify({ name, categoryId, price, description }) });
     }
     hideSpinner();
     if (result.ok) {
@@ -2457,7 +2497,7 @@ function showProductForm(product, callback) {
   document.getElementById('closeProductBtn').onclick = () => modal.remove();
 }
 
-// ========== АДАПТИРОВАННЫЕ ФУНКЦИИ (рецепты, ингредиенты) ==========
+// ========== АДАПТИРОВАННЫЕ ФУНКЦИИ ==========
 
 function renderAddRecipeForm(container) {
   if (!document.getElementById('ingredientDatalist')) { 
@@ -2466,8 +2506,9 @@ function renderAddRecipeForm(container) {
     document.body.appendChild(dl); 
   }
   
+  // Функция обновления datalist из API
   const updateDatalist = async () => {
-    const result = await apiCall('/api/stock');
+    const result = await apiCall('/api/stock'); // используем /api/stock, который возвращает массив {id, name, stock}
     if (result.ok && Array.isArray(result.data)) {
       const dl = document.getElementById('ingredientDatalist');
       dl.innerHTML = '';
@@ -2534,7 +2575,7 @@ function renderAddRecipeForm(container) {
       document.getElementById('newRecipeYield').value = '';
       document.getElementById('recipeIngredientsContainer').innerHTML = '';
       for(let i = 0; i < 3; i++) addRow();
-      updateDatalist();
+      updateDatalist(); // обновить список ингредиентов (на случай, если появились новые)
     } else {
       document.getElementById('recipeResult').innerHTML = `<div class="alert">${result.data.error || 'Ошибка добавления рецепта'}</div>`;
     }
@@ -2549,7 +2590,7 @@ function renderAddIngredientForm(container) {
     <select id="ingUnit">
       <option>кг</option><option>г</option><option>шт</option><option>л</option><option>мл</option>
     </select>
-    <label>Цена за ед. (BYN)</label><input type="text" id="ingPrice" placeholder="0,00">
+    <label>Цена за ед. (BYN)</label><input type="number" id="ingPrice" step="0.01">
     <button id="addIngredientSave">Добавить</button>
     <div id="ingredientResult"></div>
   </div>`;
@@ -2558,7 +2599,7 @@ function renderAddIngredientForm(container) {
     const name = document.getElementById('ingName').value.trim();
     const cat = document.getElementById('ingCategory').value.trim();
     const unit = document.getElementById('ingUnit').value;
-    const price = normalizePrice(document.getElementById('ingPrice').value);
+    const price = parseFloat(document.getElementById('ingPrice').value);
     if (!name || isNaN(price)) {
       document.getElementById('ingredientResult').innerHTML = '<div class="alert">Заполните название и цену</div>';
       return;
@@ -2610,7 +2651,7 @@ function renderHistoryOrders(container) {
     if (!cachedOrders.length) await fetchAllOrders();
     if (!cachedClients.length) await fetchClients();
 
-    const dateType = document.getElementById('historyDateType').value;
+    const dateType = document.getElementById('historyDateType').value; // 'created' или 'execution'
     let startDate = document.getElementById('historyStartDate').value;
     let endDate = document.getElementById('historyEndDate').value;
     let orders = [...cachedOrders];
@@ -2626,6 +2667,7 @@ function renderHistoryOrders(container) {
       });
     }
 
+    // Сортировка по выбранной дате (новые сверху)
     orders.sort((a, b) => {
       const da = parseCustomDate(dateType === 'created' ? a.created : a.executionDate);
       const db = parseCustomDate(dateType === 'created' ? b.created : b.executionDate);
@@ -2660,6 +2702,7 @@ function renderHistoryOrders(container) {
     tableDiv.innerHTML = html;
   };
 
+  // Установка дат по умолчанию (последние 30 дней)
   const today = new Date();
   const monthAgo = new Date();
   monthAgo.setDate(today.getDate() - 30);
@@ -2670,6 +2713,8 @@ function renderHistoryOrders(container) {
   loadHistory();
 }
 
+
+
 // ========== МАССОВЫЕ ОПЕРАЦИИ СО СКЛАДОМ ==========
 async function renderMassBatch(container) {
   container.innerHTML = `<div class="card"><h3>📦 Массовые операции</h3>
@@ -2679,6 +2724,7 @@ async function renderMassBatch(container) {
     <div id="batchResult"></div>
   </div>`;
 
+  // Функция загрузки списка материалов (из /api/stock)
   const loadMaterials = async () => {
     const result = await apiCall('/api/stock');
     if (result.ok && Array.isArray(result.data)) {
@@ -2692,7 +2738,7 @@ async function renderMassBatch(container) {
     div.className = 'batch-row';
     div.innerHTML = `<select class="batchMaterial"></select>
                      <select class="batchOperation"><option>Приход</option><option>Расход</option></select>
-                     <input type="text" class="batchQty" placeholder="0,00">
+                     <input type="number" class="batchQty" placeholder="Кол-во">
                      <input type="text" class="batchComment" placeholder="Коммент">
                      <button class="removeBatchRow">✖</button>`;
     document.getElementById('batchRowsContainer').appendChild(div);
@@ -2703,6 +2749,7 @@ async function renderMassBatch(container) {
     div.querySelector('.removeBatchRow').onclick = () => div.remove();
   };
 
+  // Начальные строки
   for (let i = 0; i < 3; i++) await addRow();
   document.getElementById('addBatchRowBtn').onclick = addRow;
 
@@ -2711,7 +2758,7 @@ async function renderMassBatch(container) {
     document.querySelectorAll('#batchRowsContainer .batch-row').forEach(row => {
       const mat = row.querySelector('.batchMaterial').value;
       const op = row.querySelector('.batchOperation').value;
-      const qty = normalizePrice(row.querySelector('.batchQty').value);
+      const qty = parseFloat(row.querySelector('.batchQty').value);
       const comm = row.querySelector('.batchComment').value;
       if (mat && !isNaN(qty) && qty > 0) ops.push({ materialName: mat, operation: op, quantity: qty, comment: comm });
     });
@@ -2727,7 +2774,9 @@ async function renderMassBatch(container) {
     hideSpinner();
     if (result.ok) {
       document.getElementById('batchResult').innerHTML = `<div class="success">${result.data.message || 'Операции выполнены'}</div>`;
+      // Обновить таблицу склада (если нужно)
       if (typeof refreshStockTable === 'function') refreshStockTable();
+      // Перерисуем форму (чтобы очистить строки)
       renderMassBatch(container);
     } else {
       document.getElementById('batchResult').innerHTML = `<div class="alert">${result.data.error || 'Ошибка'}</div>`;
@@ -2765,6 +2814,7 @@ async function renderUsersManager(container) {
   document.querySelectorAll('.deleteUserBtn').forEach(btn => {
     btn.onclick = async () => {
       const userId = btn.getAttribute('data-id');
+      // TODO: заменить confirm на кастомное модальное окно
       if (confirm('Удалить пользователя?')) {
         showSpinner();
         const delResult = await apiCall(`/api/users/${userId}`, { method: 'DELETE' });
@@ -2827,10 +2877,9 @@ async function showAddUserForm(callback) {
   };
   document.getElementById('closeUserBtn').onclick = () => modal.remove();
 }
-
 // ========== ИНИЦИАЛИЗАЦИЯ ПРИ ЗАГРУЗКЕ СТРАНИЦЫ ==========
 
-// ========== ГЛОБАЛЬНЫЙ ОБРАБОТЧИК КЛИКОВ ПО ЗАКАЗАМ ==========
+  // ========== ГЛОБАЛЬНЫЙ ОБРАБОТЧИК КЛИКОВ ПО ЗАКАЗАМ ==========
 document.addEventListener('click', function(e) {
   const card = e.target.closest('.order-card-clickable');
   if (!card) return;
@@ -2845,6 +2894,7 @@ document.addEventListener('click', function(e) {
     return;
   }
 
+  // Строим актуальную карту клиентов (на случай, если cachedClients обновились)
   const clientMap = {};
   (cachedClients || []).forEach(c => clientMap[c.id] = c);
   const client = clientMap[order.clientId];
@@ -2856,17 +2906,22 @@ window.onload = async function() {
   const loggedIn = localStorage.getItem('loggedIn') === 'true';
   
   if (token && loggedIn) {
+    // 1. Восстанавливаем пользователя из localStorage
     currentUser = JSON.parse(localStorage.getItem('currentUser'));
     
+    // 2. Загружаем кэшированные заказы и клиентов (если есть)
     const cachedOrdersRaw = sessionStorage.getItem('cachedOrders');
     const cachedClientsRaw = sessionStorage.getItem('cachedClients');
     if (cachedOrdersRaw) cachedOrders = JSON.parse(cachedOrdersRaw);
     if (cachedClientsRaw) cachedClients = JSON.parse(cachedClientsRaw);
     
+    // 3. Сразу рендерим главный экран (даже если данных нет – будет пусто, но не спиннер)
     renderMainApp();
     
+    // 4. Фоново обновляем данные (без спиннера) и перерисовываем активную вкладку
     try {
       await Promise.all([fetchAllOrders(true), fetchClients(true)]);
+      // Обновляем текущую вкладку, чтобы показать свежие данные
       const activeTab = document.querySelector('.nav-item.active')?.getAttribute('data-tab') || 'orders';
       showTab(activeTab);
     } catch (err) {
@@ -2880,14 +2935,18 @@ window.onload = async function() {
 async function checkSessionInBackground() {
   const result = await apiCall('/api/me');
   if (result.ok && result.data && result.data.email) {
+    // Обновляем пользователя, если изменился
     if (JSON.stringify(currentUser) !== JSON.stringify(result.data)) {
       currentUser = result.data;
       localStorage.setItem('currentUser', JSON.stringify(currentUser));
+      // Обновляем интерфейс, если нужно (например, имя в меню)
       if (typeof updateUserInterface === 'function') updateUserInterface();
     }
+    // Также можно в фоне обновить заказы и клиентов (без спиннера)
     fetchAllOrders(true).catch(console.error);
     fetchClients(true).catch(console.error);
   } else {
+    // Сессия невалидна – очищаем и показываем вход
     localStorage.removeItem('access_token');
     localStorage.removeItem('loggedIn');
     localStorage.removeItem('currentUser');
