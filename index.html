@@ -1,480 +1,470 @@
 <!DOCTYPE html>
 <html>
 <head>
+<link href="https://fonts.googleapis.com/css2?family=Radio+Canada:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <base target="_top">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 <title>CONDY Кондитерский помощник</title>
 <style>
-  .toast {
-    position: fixed;
-    bottom: 80px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: #333;
-    color: white;
-    padding: 8px 16px;
-    border-radius: 40px;
-    font-size: 0.85rem;
-    z-index: 3000;
-    opacity: 0;
-    transition: opacity 0.3s;
-    pointer-events: none;
-  }
-  .toast.show {
-    opacity: 1;
-  }
+/* ========== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ========== */
+:root {
+  --primary: #f97316;
+  --primary-dark: #ea580c;
+  --primary-gradient: linear-gradient(135deg, #f97316, #f59e0b);
+  --secondary-gradient: linear-gradient(135deg, #f093fb, #f5576c);
+  --card-shadow: 0 8px 30px rgba(0,0,0,0.08);
+  --card-shadow-hover: 0 12px 40px rgba(0,0,0,0.12);
+  --radius-card: 16px;
+  --radius-btn: 50px;
+  --radius-modal: 28px;
+  --font-heading: 'Radio Canada', sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
 
-  /* ========== ОСНОВНЫЕ СТИЛИ (компактная версия) ========== */
-  * {
-    box-sizing: border-box;
-    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  }
-  body {
-    background: #f5f7fb;
-    margin: 0;
-    padding: 0 0 60px 0;
-  }
-  .container {
-    max-width: 700px;
-    margin: 0 auto;
-    background: white;
-    border-radius: 24px;
-    padding: 12px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-    margin-bottom: 12px;
-  }
-  h1 {
-    font-size: 1.4rem;
-    font-weight: 600;
-    margin: 0 0 2px 0;
-    color: #1e293b;
-  }
-  label {
-    font-weight: 500;
-    display: block;
-    margin-top: 12px;
-    margin-bottom: 4px;
-    font-size: 0.85rem;
-    color: #0f172a;
-  }
-  select, input, textarea {
-    width: 100%;
-    padding: 8px 12px;
-    font-size: 0.9rem;
-    border: 1px solid #cbd5e1;
-    border-radius: 16px;
-    background: white;
-  }
-  button {
-    background: #f97316;
-    color: white;
-    border: none;
-    padding: 8px 14px;
-    font-size: 0.85rem;
-    font-weight: 500;
-    border-radius: 40px;
-    width: 100%;
-    margin-top: 12px;
-    cursor: pointer;
-  }
-  button.secondary {
-    background: #334155;
-    margin-top: 8px;
-  }
-  .card {
-    background: #f8fafc;
-    border-radius: 16px;
-    padding: 12px;
-    margin-top: 12px;
-    overflow-x: auto;
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.8rem;
-  }
-  th, td {
-    text-align: left;
-    padding: 6px 4px;
-    border-bottom: 1px solid #e2e8f0;
-  }
-  .amount {
-    text-align: right;
-  }
-  .alert, .success {
-    padding: 8px;
-    font-size: 0.8rem;
-    margin-top: 8px;
-  }
+* {
+  box-sizing: border-box;
+  font-family: var(--font-body);
+}
+body {
+  background: #f5f7fb;
+  margin: 0;
+  padding: 0 0 60px 0;
+}
 
-  /* Спиннер */
-  .spinner {
-    display: inline-block;
-    width: 18px;
-    height: 18px;
-    border: 2px solid rgba(0,0,0,0.1);
-    border-radius: 50%;
-    border-top-color: #f97316;
-    animation: spin 0.6s linear infinite;
-    margin-left: 6px;
-    vertical-align: middle;
-  }
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-  .loading-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(255,255,255,0.8);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 3000;
-  }
-  .loading-overlay .spinner {
-    width: 32px;
-    height: 32px;
-    border-width: 3px;
-  }
+/* ========== ШРИФТЫ ДЛЯ ЗАГОЛОВКОВ ========== */
+h1, h2, h3, h4, .heading-font {
+  font-family: var(--font-heading) !important;
+  font-weight: 700;
+}
 
-  /* Нижняя навигация */
-  .bottom-nav {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: white;
-    display: flex;
-    justify-content: space-around;
-    padding: 4px 8px;
-    box-shadow: 0 -2px 8px rgba(0,0,0,0.08);
-    border-top: 1px solid #e2e8f0;
-    z-index: 1000;
-    max-width: 700px;
-    margin: 0 auto;
-    border-radius: 20px 20px 0 0;
-  }
-  .nav-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    background: none;
-    border: none;
-    font-size: 11px;
-    color: #64748b;
-    cursor: pointer;
-    width: 20%;
-    text-align: center;
-    padding: 2px 0;
-  }
-  .nav-item.active {
-    color: #f97316;
-  }
-  .nav-item span:first-child {
-    font-size: 22px;
-    margin-bottom: 2px;
-  }
+/* ========== КОНТЕЙНЕРЫ ========== */
+.container {
+  max-width: 700px;
+  margin: 0 auto;
+  background: white;
+  border-radius: var(--radius-card);
+  padding: 16px;
+  box-shadow: var(--card-shadow);
+  margin-bottom: 12px;
+  transition: box-shadow 0.2s ease;
+}
+.container:hover {
+  box-shadow: var(--card-shadow-hover);
+}
 
-  /* Календарь */
-  .calendar-grid {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 4px;
-    text-align: center;
-    margin: 8px 0;
-  }
-  .calendar-day {
-    cursor: pointer;
-    padding: 6px 2px;
-    background: #f1f5f9;
-    border-radius: 12px;
-    transition: 0.2s;
-    font-size: 0.85rem;
-    line-height: 1.2;
-    min-height: 40px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-  }
-  .calendar-day.today {
-    background: #f97316;
-    color: white;
-  }
-  .calendar-day.selected {
-    background: #3b82f6;
-    color: white;
-  }
-  .calendar-sum {
-    font-size: 0.65rem;
-    font-weight: bold;
-    color: #f97316;
-    margin-top: 2px;
-    height: 18px;
-    line-height: 18px;
-  }
+/* ========== КАРТОЧКИ ========== */
+.card {
+  background: #ffffff;
+  border-radius: var(--radius-card);
+  padding: 16px;
+  margin-top: 12px;
+  overflow-x: auto;
+  box-shadow: var(--card-shadow);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--card-shadow-hover);
+}
 
-  /* Плавающая кнопка */
-  .fab {
-    position: fixed;
-    bottom: 70px;
-    right: 16px;
-    width: 48px;
-    height: 48px;
-    background: #f97316;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.2);
-    cursor: pointer;
-    z-index: 1001;
-    transition: 0.2s;
-  }
-  .fab:hover {
-    transform: scale(1.05);
-    background: #ea580c;
-  }
-  .fab span {
-    font-size: 26px;
-    color: white;
-  }
+/* ========== КНОПКИ ========== */
+button {
+  background: var(--primary-gradient);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-radius: var(--radius-btn);
+  width: 100%;
+  margin-top: 12px;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  font-family: var(--font-heading);
+}
+button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(249, 115, 22, 0.35);
+}
+button:active {
+  transform: scale(0.98);
+}
+button.secondary {
+  background: #334155;
+  box-shadow: none;
+}
+button.secondary:hover {
+  background: #1e293b;
+  box-shadow: 0 8px 20px rgba(51, 65, 85, 0.35);
+}
 
-  /* Карточка заказа */
-  .order-card-clickable {
-    margin-bottom: 6px;
-    border-radius: 14px;
-    padding: 8px 10px;
-    cursor: pointer;
-    transition: 0.2s;
-    border-left: 3px solid;
-    font-size: 0.85rem;
-    touch-action: manipulation;
-  }
-  .order-card-clickable:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-  }
-  .order-card-clickable.status-work {
-    background: #fff7ed;
-    border-left-color: #f97316;
-  }
-  .order-card-clickable.status-paid {
-    background: #dcfce7;
-    border-left-color: #22c55e;
-  }
-  .order-card-clickable.status-completed {
-    background: #bbf7d0;
-    border-left-color: #16a34a;
-  }
-  .order-card-clickable.status-canceled {
-    background: #fee2e2;
-    border-left-color: #ef4444;
-  }
+/* Кнопки с авто-шириной (не растягиваются) */
+button[style*="width:auto"],
+.btn-auto {
+  width: auto !important;
+  padding: 8px 18px;
+  font-size: 0.85rem;
+}
 
-  /* Кнопки статуса */
-  .status-group {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-    margin: 8px 0;
-  }
-  .status-btn {
-    background: #e2e8f0;
-    color: #1e293b;
-    padding: 4px 8px;
-    border-radius: 30px;
-    font-size: 0.75rem;
-    font-weight: 500;
-    border: none;
-    cursor: pointer;
-    flex: 1;
-    text-align: center;
-    margin: 0;
-  }
-  .status-btn.active {
-    background: #f97316;
-    color: white;
-  }
+/* ========== ПОЛЯ ВВОДА ========== */
+select, input, textarea {
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 12px;
+  background: white;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  font-family: var(--font-body);
+}
+select:focus, input:focus, textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.2);
+}
 
-  /* Модальное окно */
-  .modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 2000;
-  }
-  .modal-content {
-    background: white;
-    max-width: 90%;
-    width: 450px;
-    padding: 20px;
-    border-radius: 28px;
-    max-height: 85vh;
-    overflow-y: auto;
-  }
-  .modal-buttons {
-    display: flex;
-    gap: 12px;
-    margin-top: 20px;
-  }
-  .modal-buttons button {
-    flex: 1;
-    margin-top: 0;
-  }
+/* ========== ТАБЛИЦЫ ========== */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+th, td {
+  text-align: left;
+  padding: 8px 6px;
+  border-bottom: 1px solid #e2e8f0;
+}
+th {
+  font-weight: 600;
+  color: #1e293b;
+  background: #f8fafc;
+}
+tr:hover {
+  background: #f8fafc;
+}
 
-  /* Таблица товаров (компактная) */
-  .products-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.8rem;
-  }
+/* ========== МОДАЛЬНЫЕ ОКНА ========== */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  animation: fadeIn 0.3s ease;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+.modal-content {
+  background: white;
+  max-width: 90%;
+  width: 450px;
+  padding: 24px;
+  border-radius: var(--radius-modal);
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+
+/* ========== ТАБЛИЦА ТОВАРОВ (компактная) ========== */
+.products-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+.products-table th,
+.products-table td {
+  padding: 4px 2px;
+  border-bottom: 1px solid #e2e8f0;
+  vertical-align: middle;
+}
+.products-table input {
+  width: 100%;
+  padding: 4px;
+  font-size: 0.75rem;
+  box-sizing: border-box;
+}
+.product-remove button {
+  background: none;
+  border: none;
+  color: #ef4444;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  width: auto;
+}
+.add-row {
+  background: var(--primary-gradient);
+  color: white;
+  border: none;
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  border-radius: 20px;
+  cursor: pointer;
+  width: auto;
+  font-family: var(--font-heading);
+}
+
+/* ========== НИЖНЯЯ НАВИГАЦИЯ ========== */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: white;
+  display: flex;
+  justify-content: space-around;
+  padding: 6px 8px;
+  box-shadow: 0 -2px 12px rgba(0,0,0,0.08);
+  border-top: 1px solid #e2e8f0;
+  z-index: 1000;
+  max-width: 700px;
+  margin: 0 auto;
+  border-radius: 20px 20px 0 0;
+}
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: none;
+  border: none;
+  font-size: 11px;
+  color: #64748b;
+  cursor: pointer;
+  width: 20%;
+  text-align: center;
+  padding: 4px 0;
+  font-family: var(--font-body);
+}
+.nav-item.active {
+  color: var(--primary);
+}
+.nav-item span:first-child {
+  font-size: 22px;
+  margin-bottom: 2px;
+}
+
+/* ========== КАЛЕНДАРЬ ========== */
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  text-align: center;
+  margin: 8px 0;
+}
+.calendar-day {
+  cursor: pointer;
+  padding: 6px 2px;
+  background: #f1f5f9;
+  border-radius: 12px;
+  transition: 0.2s;
+  font-size: 0.85rem;
+  line-height: 1.2;
+  min-height: 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.calendar-day.today {
+  background: var(--primary-gradient);
+  color: white;
+}
+.calendar-day.selected {
+  background: #3b82f6;
+  color: white;
+}
+.calendar-sum {
+  font-size: 0.65rem;
+  font-weight: bold;
+  color: var(--primary);
+  margin-top: 2px;
+  height: 18px;
+  line-height: 18px;
+}
+
+/* ========== КАРТОЧКИ ЗАКАЗОВ ========== */
+.order-card-clickable {
+  margin-bottom: 3px;
+  border-radius: 14px;
+  padding: 6px 8px;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  border-left: 4px solid;
+  font-size: 0.8rem;
+  touch-action: manipulation;
+  background: white;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+.order-card-clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+}
+.order-card-clickable.status-work {
+  border-left-color: var(--primary);
+  background: #fff7ed;
+}
+.order-card-clickable.status-paid {
+  border-left-color: #22c55e;
+  background: #dcfce7;
+}
+.order-card-clickable.status-completed {
+  border-left-color: #16a34a;
+  background: #bbf7d0;
+}
+.order-card-clickable.status-canceled {
+  border-left-color: #ef4444;
+  background: #fee2e2;
+}
+
+/* ========== КНОПКИ СТАТУСА ========== */
+.status-group {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+}
+.status-btn {
+  background: #e2e8f0;
+  color: #1e293b;
+  padding: 6px 12px;
+  border-radius: 30px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  flex: 1;
+  text-align: center;
+  margin: 0;
+  transition: 0.15s;
+}
+.status-btn.active {
+  background: var(--primary-gradient);
+  color: white;
+}
+
+/* ========== ВЫЕЗЖАЮЩЕЕ МЕНЮ ========== */
+.menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 1500;
+  display: none;
+}
+.slide-menu {
+  position: fixed;
+  top: 0;
+  right: -280px;
+  width: 260px;
+  bottom: 60px;
+  background: white;
+  z-index: 1501;
+  transition: right 0.3s ease;
+  padding: 16px;
+  box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+  border-radius: 20px 0 0 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+.slide-menu.open { right: 0; }
+.slide-menu button {
+  margin-top: 0;
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  width: 100%;
+}
+
+/* ========== АНИМАЦИЯ ПОЯВЛЕНИЯ ========== */
+.fade-in-up {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+.fade-in-up.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ========== ТОСТЫ И СПИННЕРЫ ========== */
+.toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #333;
+  color: white;
+  padding: 10px 20px;
+  border-radius: 40px;
+  font-size: 0.9rem;
+  z-index: 3000;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+}
+.toast.show { opacity: 1; }
+
+.spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(0,0,0,0.1);
+  border-radius: 50%;
+  border-top-color: var(--primary);
+  animation: spin 0.6s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255,255,255,0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 3000;
+}
+.loading-overlay .spinner {
+  width: 32px;
+  height: 32px;
+  border-width: 3px;
+}
+
+/* ========== АДАПТАЦИЯ ДЛЯ МОБИЛЬНЫХ ========== */
+@media (max-width: 600px) {
+  .container { padding: 10px; margin: 6px; border-radius: 18px; }
+  h1 { font-size: 1.2rem; }
+  button { padding: 8px 14px; font-size: 0.8rem; }
+  .calendar-day { padding: 4px 1px; font-size: 0.75rem; }
+  .calendar-grid { gap: 2px; }
+  .order-card-clickable { padding: 6px; font-size: 0.8rem; }
   .products-table th,
-  .products-table td {
-    padding: 4px 2px;
-    border-bottom: 1px solid #e2e8f0;
-    vertical-align: middle;
-  }
-  .products-table input {
-    width: 100%;
-    padding: 4px;
-    font-size: 0.75rem;
-    box-sizing: border-box;
-  }
-  .products-table .product-remove {
-    width: 30px;
-    text-align: center;
-  }
-  .product-remove button {
-    background: none;
-    border: none;
-    color: #ef4444;
-    font-size: 1.2rem;
-    cursor: pointer;
-    padding: 0;
-    margin: 0;
-    width: auto;
-  }
-  .add-row {
-    background: #f97316;
-    color: white;
-    border: none;
-    padding: 4px 8px;
-    font-size: 0.75rem;
-    border-radius: 20px;
-    cursor: pointer;
-    width: auto;
-  }
-
-  /* Выезжающее меню */
-  .menu-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0,0,0,0.5);
-    z-index: 1500;
-    display: none;
-  }
-  .slide-menu {
-    position: fixed;
-    top: 0;
-    right: -280px;
-    width: 260px;
-    bottom: 60px;
-    background: white;
-    z-index: 1501;
-    transition: right 0.3s ease;
-    padding: 16px;
-    box-shadow: -2px 0 10px rgba(0,0,0,0.1);
-    border-radius: 20px 0 0 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    overflow-y: auto;
-  }
-  .slide-menu.open {
-    right: 0;
-  }
-  .slide-menu button {
-    margin-top: 0;
-    padding: 8px 12px;
-    font-size: 0.85rem;
-  }
-
-  /* Адаптация для мобильных устройств */
-  @media (max-width: 600px) {
-    .container {
-      padding: 8px;
-      margin: 6px;
-      border-radius: 18px;
-    }
-    h1 {
-      font-size: 1.2rem;
-    }
-    button {
-      padding: 6px 12px;
-      font-size: 0.8rem;
-    }
-    .calendar-day {
-      padding: 4px 1px;
-      font-size: 0.75rem;
-    }
-    .calendar-grid {
-      gap: 2px;
-    }
-    .order-card-clickable {
-      padding: 6px;
-      font-size: 0.8rem;
-    }
-    .fab {
-      bottom: 65px;
-      right: 14px;
-      width: 44px;
-      height: 44px;
-    }
-    .fab span {
-      font-size: 22px;
-    }
-    .products-table th,
-    .products-table td {
-      padding: 2px 1px;
-    }
-    .products-table input {
-      font-size: 0.7rem;
-    }
-    .add-row {
-      font-size: 0.7rem;
-      padding: 2px 6px;
-    }
-  }
-
-  @media (max-width: 380px) {
-    .calendar-day {
-      font-size: 0.65rem;
-      padding: 3px 1px;
-    }
-    .nav-item span:first-child {
-      font-size: 18px;
-    }
-    .nav-item {
-      font-size: 9px;
-    }
-    .products-table .product-quantity,
-    .products-table .product-price {
-      width: 50px;
-    }
-  }
+  .products-table td { padding: 2px 1px; }
+  .products-table input { font-size: 0.7rem; }
+  .add-row { font-size: 0.7rem; padding: 2px 8px; }
+}
+@media (max-width: 380px) {
+  .calendar-day { font-size: 0.65rem; padding: 3px 1px; }
+  .nav-item span:first-child { font-size: 18px; }
+  .nav-item { font-size: 9px; }
+  .products-table .product-quantity,
+  .products-table .product-price { width: 50px; }
+}
 </style>
 </head>
 
@@ -805,15 +795,24 @@ function showTab(tabId) {
 // =========================== 4. ЗАКАЗЫ (исправленные, безопасные) ===========================
 function renderOrdersTab(container) {
   container.innerHTML = `
-    <h1>📦 Заказы</h1>
+    <h1 style="
+    margin-top: 0px;
+    margin-bottom: 0px;
+">📦 Заказы</h1>
     <div style="display:flex; justify-content:space-between;">
       <button id="prevMonth" class="secondary" style="width:auto;">◀</button>
       <span id="monthYear" style="font-weight:bold;"></span>
       <button id="nextMonth" class="secondary" style="width:auto;">▶</button>
     </div>
     <div id="calendarGrid" class="calendar-grid"></div>
+    <div style="display:flex; justify-content:center; margin:12px 0;">
+      <button id="addOrderBtn" style="width:auto;background:#fb923c;font-weight:600;padding:10px 24px;border-radius:40px;border:none;color:white;cursor:pointer;box-shadow:0 4px 12px rgba(251,146,60,0.3);transition:all 0.2s;margin-top: 0px;">
+        ➕ НОВЫЙ ЗАКАЗ
+      </button>
+    </div>
     <div id="ordersList"></div>
   `;
+
   document.getElementById('prevMonth').onclick = () => {
     currentMonth--;
     if (currentMonth < 0) {
@@ -830,24 +829,14 @@ function renderOrdersTab(container) {
     }
     renderCalendar();
   };
-  const fabDiv = document.getElementById('fabContainer');
-  if (fabDiv) {
-    fabDiv.innerHTML = `<div class="fab" id="fabBtn"><span>+</span></div>`;
-    document.getElementById('fabBtn').onclick = () => showOrderForm();
-  } else {
-    const fab = document.createElement('div');
-    fab.id = 'fabBtn';
-    fab.className = 'fab';
-    fab.innerHTML = '<span>+</span>';
-    document.body.appendChild(fab);
-    fab.onclick = () => showOrderForm();
-  }
-  if (!selectedDate) {
-  const today = new Date();
-  selectedDate = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-}
-  renderCalendar();
 
+  document.getElementById('addOrderBtn').onclick = () => showOrderForm();
+
+  if (!selectedDate) {
+    const today = new Date();
+    selectedDate = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  }
+  renderCalendar();
 }
 
 async function renderCalendar() {
@@ -907,19 +896,29 @@ async function renderCalendar() {
   if (selectedDate) await loadOrdersForDate(selectedDate);
 }
 
+// Вспомогательная функция для форматирования даты в "день месяц год"
+function formatDateLong(dateStr) {
+  if (!dateStr) return '—';
+  const d = parseCustomDate(dateStr);
+  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
 async function loadOrdersForDate(dateStr) {
   console.log('loadOrdersForDate вызвана для даты', dateStr);
   if (!cachedOrders.length) await fetchAllOrders();
   if (!cachedClients.length) await fetchClients();
-  if (!cachedProducts.length) await fetchProducts(); // нужно для названий товаров
+  if (!cachedProducts.length) await fetchProducts();
 
   const clientMap = {};
   (cachedClients || []).forEach(c => clientMap[c.id] = c);
   const ordersOnDate = (cachedOrders || []).filter(o => o && o.executionDate && o.executionDate === dateStr);
   const container = document.getElementById('ordersList');
 
+  // Форматируем дату для отображения (например, "24 июля 2026")
+  const displayDate = formatDateLong(dateStr);
+
   if (ordersOnDate.length === 0) {
-    container.innerHTML = '<div class="card">📭 Нет заказов на эту дату</div>';
+    container.innerHTML = `<div class="card">📅 ${displayDate}: пока нет заказов</div>`;
     return;
   }
 
@@ -936,7 +935,7 @@ async function loadOrdersForDate(dateStr) {
     }
   });
 
-  let html = `<div class="card"><h3>📅 Заказы на ${escapeHtml(dateStr)}</h3>`;
+  let html = `<div class="card"><h3>📅 ${displayDate}</h3>`;
   for (const o of ordersOnDate) {
     const client = clientMap[o.clientId];
     let statusClass = '';
@@ -945,14 +944,12 @@ async function loadOrdersForDate(dateStr) {
     else if (o.status === 'завершен') statusClass = 'completed';
     else if (o.status === 'отменён') statusClass = 'canceled';
 
-    // Помечаем нового клиента (если у него только один заказ)
     let isNew = false;
     if (client && client.id) {
       const clientOrdersCount = cachedOrders.filter(order => order.clientId == client.id).length;
       isNew = (clientOrdersCount === 1);
     }
 
-    // Строим список товаров для этого заказа
     const items = itemsMap[o.id] || [];
     let itemsHtml = '';
     if (items.length) {
@@ -965,7 +962,7 @@ async function loadOrdersForDate(dateStr) {
 
     html += `<div class="order-card-clickable status-${statusClass}" data-id="${o.id}">
       <b>#${o.id}</b> — ${client ? escapeHtml(client.name) : 'Неизвестный'}${isNew ? ' <span class="new-badge" style="background:#f97316; color:white; font-size:0.7rem; padding:2px 6px; border-radius:12px; margin-left:6px;">new</span>' : ''}<br>
-      💰 ${o.price.toFixed(2)} BYN| Статус: ${escapeHtml(o.status)}<br>
+      💰 ${o.price.toFixed(2)} BYN | Статус: ${escapeHtml(o.status)}<br>
       ${itemsHtml}
       ${o.details ? `📝 ${escapeHtml(o.details)}<br>` : ''}
       ${o.delivery ? `🚚 ${escapeHtml(o.delivery)}<br>` : ''}
@@ -974,6 +971,7 @@ async function loadOrdersForDate(dateStr) {
   html += `</div>`;
   container.innerHTML = html;
 }
+
 async function showOrderDetailsModal(order, client) {
   console.log('showOrderDetailsModal вызвана', order, client);
   let currentStatus = order.status;
@@ -2953,6 +2951,23 @@ async function checkSessionInBackground() {
     renderLoginPage();
   }
 }
+
+// ========== ПЛАВНОЕ ПОЯВЛЕНИЕ ПРИ СКРОЛЛЕ ==========
+document.addEventListener('DOMContentLoaded', function() {
+  const reveals = document.querySelectorAll('.fade-in-up');
+  const observer = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.15 });
+  reveals.forEach(function(el) {
+    observer.observe(el);
+  });
+});
+
 </script>
 <div id="toastMsg" class="toast"></div>
 
