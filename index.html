@@ -1047,7 +1047,7 @@ async function showOrderDetailsModal(order, client) {
 
   // Отрисовка таблицы товаров
  function renderProductRows() {
-  const container = document.getElementById('orderProductsContainer');
+  const container = document.getElementById('editOrderProductsContainer');
   if (!container) return;
   if (orderProducts.length === 0) {
     container.innerHTML = '<div class="products-table" style="padding:8px; text-align:center;">Нет товаров</div>';
