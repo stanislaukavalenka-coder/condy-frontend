@@ -465,6 +465,54 @@ tr:hover {
   .products-table .product-quantity,
   .products-table .product-price { width: 50px; }
 }
+
+/* ========== КАСТОМНОЕ ВЫПАДАЮЩЕЕ МЕНЮ ДЛЯ ТОВАРОВ ========== */
+.custom-dropdown {
+  position: relative;
+}
+.custom-dropdown input {
+  width: 100%;
+}
+.custom-dropdown-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 100;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  display: none;
+}
+.custom-dropdown-list.show {
+  display: block;
+}
+.custom-dropdown-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #f1f5f9;
+  transition: background 0.1s;
+}
+.custom-dropdown-item:hover {
+  background: #f8fafc;
+}
+.custom-dropdown-item .item-name {
+  font-weight: 500;
+}
+.custom-dropdown-item .item-price {
+  color: #64748b;
+  font-size: 0.85rem;
+}
+.custom-dropdown-item:last-child {
+  border-bottom: none;
+}
+
 </style>
 </head>
 
@@ -771,7 +819,7 @@ function renderMainApp() {
       <button class="nav-item" data-tab="orders"><span>📦</span><span>Заказы</span></button>
       <button class="nav-item" data-tab="calculator"><span>🧮</span><span>Калькулятор</span></button>
       <button class="nav-item" data-tab="stock"><span>📊</span><span>Склад</span></button>
-      <button class="nav-item" data-tab="finance"><span>💰</span><span>Доходы/Расходы</span></button>
+      <button class="nav-item" data-tab="analytics"><span>💰</span><span>Аналитика</span></button>
       <button class="nav-item" data-tab="more"><span>☰</span><span>Ещё</span></button>
     </div>
   `;
@@ -786,9 +834,9 @@ function showTab(tabId) {
   document.querySelectorAll('.nav-item').forEach(btn => btn.classList.toggle('active', btn.getAttribute('data-tab') === tabId));
   const container = document.getElementById('mainContent');
   if (tabId === 'orders') renderOrdersTab(container);
-  else if (tabId === 'calculator') renderCalculatorTab(container);
-  else if (tabId === 'stock') renderStockTab(container);
-  else if (tabId === 'finance') renderFinanceTab(container);
+  else if (tabId === 'recipes') renderRecipesTab(container);
+  else if (tabId === 'market') renderMarketTab(container);
+  else if (tabId === 'analytics') renderAnalyticsTab(container);
   else if (tabId === 'more') renderMoreTab(container);
 }
 
@@ -998,58 +1046,111 @@ async function showOrderDetailsModal(order, client) {
   }
 
   // Отрисовка таблицы товаров
-  function renderProductRows() {
-    const container = document.getElementById('editOrderProductsContainer');
-    if (!container) return;
-    if (orderProducts.length === 0) {
-      container.innerHTML = '<div class="products-table" style="padding:8px; text-align:center;">Нет товаров</div>';
-      return;
-    }
+ function renderProductRows() {
+  const container = document.getElementById('orderProductsContainer');
+  if (!container) return;
+  if (orderProducts.length === 0) {
+    container.innerHTML = '<div class="products-table" style="padding:8px; text-align:center;">Нет товаров</div>';
+    return;
+  }
 
-    let html = `
-      <table class="products-table">
-        <thead><tr><th>Наименование</th><th style="width:80px">Кол-во (шт)</th><th style="width:100px">Цена (BYN)</th><th style="width:80px">Сумма</th><th style="width:30px"></th></tr></thead>
-        <tbody>
+  let html = `
+    <table class="products-table">
+      <thead><tr><th>Наименование</th><th style="width:80px">Кол-во (шт)</th><th style="width:100px">Цена (BYN)</th><th style="width:80px">Сумма</th><th style="width:30px"></th></tr></thead>
+      <tbody>
+  `;
+
+  orderProducts.forEach((p, idx) => {
+    const displayName = p.customName ? p.customName : (p.name || '');
+    const sum = (p.price || 0) * (p.quantity || 1);
+    const inputId = `productInput_${idx}`;
+    html += `
+      <tr data-idx="${idx}">
+        <td>
+          <div class="custom-dropdown">
+            <input type="text" class="edit-product-name" id="${inputId}" value="${escapeHtml(displayName)}" placeholder="Название товара" autocomplete="off">
+            <div class="custom-dropdown-list" id="dropdown_${idx}"></div>
+          </div>
+        </td>
+        <td><input type="number" class="edit-product-quantity" value="${p.quantity}" min="1" step="1"></td>
+        <td><input type="text" class="edit-product-price" value="${p.price.toFixed(2).replace('.', ',')}" placeholder="0,00"></td>
+        <td class="product-sum">${sum.toFixed(2)}</td>
+        <td class="product-remove"><button class="remove-edit-product" data-idx="${idx}">✖</button></td>
+      </tr>
     `;
+  });
+  html += `</tbody></table>`;
+  container.innerHTML = html;
 
-    const activeProducts = (cachedProducts || []).filter(p => p.isActive);
+  // Настройка для каждой строки
+  orderProducts.forEach((p, idx) => {
+    const nameInput = document.getElementById(`productInput_${idx}`);
+    const dropdown = document.getElementById(`dropdown_${idx}`);
 
-    orderProducts.forEach((p, idx) => {
-      const displayName = p.customName ? p.customName : (p.name || '');
-      const sum = (p.price || 0) * (p.quantity || 1);
-      const datalistId = `editProductsDatalist_${idx}`;
-      html += `
-        <tr data-idx="${idx}">
-          <td><input type="text" class="edit-product-name" list="${datalistId}" value="${escapeHtml(displayName)}" placeholder="Название товара">
-            <datalist id="${datalistId}">
-              ${activeProducts.map(prod => `<option value="${escapeHtml(prod.name)}" data-price="${prod.price}"></option>`).join('')}
-            </datalist>
-          </td>
-          <td><input type="number" class="edit-product-quantity" value="${p.quantity}" min="1" step="1"></td>
-          <td><input type="number" class="edit-product-price" value="${p.price.toFixed(2)}" step="0.01" min="0"></td>
-          <td class="product-sum">${sum.toFixed(2)}</td>
-          <td class="product-remove"><button class="remove-edit-product" data-idx="${idx}">✖</button></td>
-        </tr>
-      `;
-    });
-    html += `</tbody></table>`;
-    container.innerHTML = html;
+    // === ВЫПАДАЮЩИЙ СПИСОК ТОВАРОВ ===
+    if (nameInput && dropdown) {
+      nameInput.addEventListener('input', function() {
+        const query = this.value.trim().toLowerCase();
+        const activeProducts = (cachedProducts || []).filter(prod => prod.isActive);
+        let filtered = activeProducts;
+        if (query) {
+          filtered = activeProducts.filter(prod => prod.name.toLowerCase().includes(query));
+        }
+        if (filtered.length === 0) {
+          dropdown.innerHTML = '<div class="custom-dropdown-item" style="color:#999;cursor:default;">Нет совпадений</div>';
+          dropdown.classList.add('show');
+          return;
+        }
+        let listHtml = '';
+        filtered.forEach(prod => {
+          listHtml += `
+            <div class="custom-dropdown-item" data-id="${prod.id}" data-name="${escapeHtml(prod.name)}" data-price="${prod.price}">
+              <span class="item-name">${escapeHtml(prod.name)}</span>
+              <span class="item-price">${prod.price.toFixed(2)} BYN</span>
+            </div>
+          `;
+        });
+        dropdown.innerHTML = listHtml;
+        dropdown.classList.add('show');
 
-    // Обработчики
-    document.querySelectorAll('.edit-product-name').forEach((input, idx) => {
-      input.addEventListener('change', async (e) => {
-        const newName = e.target.value.trim();
+        dropdown.querySelectorAll('.custom-dropdown-item').forEach(item => {
+          item.addEventListener('mousedown', function(e) {
+            e.preventDefault();
+            const id = parseInt(this.dataset.id);
+            const name = this.dataset.name;
+            const price = parseFloat(this.dataset.price);
+            const product = cachedProducts.find(p => p.id === id);
+            if (product) {
+              orderProducts[idx].productId = product.id;
+              orderProducts[idx].name = product.name;
+              orderProducts[idx].price = product.price;
+              orderProducts[idx].customName = null;
+              nameInput.value = product.name;
+              const priceInput = nameInput.closest('tr').querySelector('.edit-product-price');
+              if (priceInput) priceInput.value = product.price.toFixed(2).replace('.', ',');
+              calculateTotalAndRowSums();
+            }
+            dropdown.classList.remove('show');
+          });
+        });
+      });
+
+      nameInput.addEventListener('blur', function() {
+        setTimeout(() => dropdown.classList.remove('show'), 200);
+      });
+
+      nameInput.addEventListener('change', function() {
+        const newName = this.value.trim();
         if (!newName) return;
-        if (!cachedProducts.length) await fetchProducts();
         const found = cachedProducts.find(p => p.name.toLowerCase() === newName.toLowerCase());
         if (found) {
           orderProducts[idx].productId = found.id;
           orderProducts[idx].name = found.name;
           orderProducts[idx].price = found.price;
           orderProducts[idx].customName = null;
-          const priceInput = e.target.closest('tr').querySelector('.edit-product-price');
-if (priceInput) priceInput.value = found.price.toFixed(2);
-          e.target.value = found.name;
+          const priceInput = this.closest('tr').querySelector('.edit-product-price');
+          if (priceInput) priceInput.value = found.price.toFixed(2).replace('.', ',');
+          this.value = found.name;
         } else {
           orderProducts[idx].productId = null;
           orderProducts[idx].name = null;
@@ -1057,39 +1158,65 @@ if (priceInput) priceInput.value = found.price.toFixed(2);
         }
         calculateTotalAndRowSums();
       });
-    });
-    document.querySelectorAll('.edit-product-quantity').forEach((input, idx) => {
-      input.addEventListener('input', (e) => {
-        let qty = parseInt(e.target.value);
+    }
+
+    // === КОЛИЧЕСТВО ===
+    const qtyInput = document.querySelector(`tr[data-idx="${idx}"] .edit-product-quantity`);
+    if (qtyInput) {
+      qtyInput.addEventListener('input', function() {
+        let qty = parseInt(this.value);
         if (isNaN(qty) || qty < 1) qty = 1;
         orderProducts[idx].quantity = qty;
         calculateTotalAndRowSums();
       });
-    });
-  document.querySelectorAll('.edit-product-price').forEach((input, idx) => {
-  input.addEventListener('input', (e) => {
-    let price = normalizePrice(e.target.value);
-    orderProducts[idx].price = price;
-    e.target.value = price.toFixed(2);
+    }
+
+    // === ЦЕНА (с улучшенным поведением) ===
+const priceInput = document.querySelector(`tr[data-idx="${idx}"] .edit-product-price`);
+if (priceInput) {
+  // При вводе — только пересчёт (без форматирования)
+  priceInput.addEventListener('input', function() {
+    let raw = this.value.trim().replace(',', '.');
+    let num = parseFloat(raw);
+    if (isNaN(num)) num = 0;
+    orderProducts[idx].price = num;
     calculateTotalAndRowSums();
   });
-  input.addEventListener('blur', (e) => {
-    formatPriceInput(e.target);
-    let price = normalizePrice(e.target.value);
-    orderProducts[idx].price = price;
+
+  // При потере фокуса — интеллектуальное форматирование
+  priceInput.addEventListener('blur', function() {
+    let raw = this.value.trim();
+    // Если в строке нет запятой и нет точки, оставляем как есть (целое число)
+    if (!raw.includes(',') && !raw.includes('.')) {
+      let num = parseFloat(raw);
+      if (!isNaN(num)) {
+        orderProducts[idx].price = num;
+        // Оставляем поле без изменений (не форматируем)
+        calculateTotalAndRowSums();
+        return;
+      }
+    }
+    // Если есть десятичный разделитель — форматируем с двумя знаками
+    formatPriceInput(this);
+    let num = normalizePrice(this.value);
+    orderProducts[idx].price = num;
     calculateTotalAndRowSums();
   });
-});
-    document.querySelectorAll('.remove-edit-product').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const idx = parseInt(btn.dataset.idx);
+}
+
+    // === УДАЛЕНИЕ ===
+    const removeBtn = document.querySelector(`tr[data-idx="${idx}"] .remove-edit-product`);
+    if (removeBtn) {
+      removeBtn.addEventListener('click', function() {
         orderProducts.splice(idx, 1);
         renderProductRows();
         calculateTotalAndRowSums();
       });
-    });
-    calculateTotalAndRowSums();
-  }
+    }
+  });
+
+  calculateTotalAndRowSums();
+}
 
   // Пересчёт сумм в строках и общей суммы
   function calculateTotalAndRowSums() {
@@ -1878,148 +2005,332 @@ function formatDate(dateStr) {
 
 
   
-function renderFinanceTab(container) {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = today.getMonth();
-  const firstDayStr = `${year}-${String(month+1).padStart(2,'0')}-01`;
-  const todayStr = `${year}-${String(month+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-
+// =========================== АНАЛИТИКА (с кликабельными финансами) ===========================
+function renderAnalyticsTab(container) {
   container.innerHTML = `
-    <h1>💰 Доходы/Расходы</h1>
-    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:16px;">
-      <input type="date" id="startDate" value="${firstDayStr}" style="flex:1;">
-      <input type="date" id="endDate" value="${todayStr}" style="flex:1;">
-      <button id="filterBtn" class="secondary" style="width:auto;">Показать</button>
+    <h1>📊 Аналитика</h1>
+    <div style="margin-bottom:16px;">
+      <div style="display:flex; gap:0; position:relative; border-bottom:2px solid #e2e8f0;">
+        <button class="analytics-tab-btn" data-tab="finance" style="background:none; border:none; padding:8px 16px; font-size:1rem; font-weight:600; color:#f97316; cursor:pointer; width:auto; margin:0;">Финансы</button>
+        <button class="analytics-tab-btn" data-tab="production" style="background:none; border:none; padding:8px 16px; font-size:1rem; font-weight:600; color:#64748b; cursor:pointer; width:auto; margin:0;">Производство</button>
+        <div id="tabLine" style="position:absolute; bottom:-2px; left:0; height:2px; background:#f97316; transition:transform 0.3s ease; width:0;"></div>
+      </div>
     </div>
-    <div id="summary"></div>
-    <div id="transactionsList" style="max-height:400px; overflow-y:auto;"></div>
-    <button id="addTransactionBtn">➕ Добавить операцию</button>
+    <div id="tabContent"></div>
   `;
 
-  async function loadData() {
-    const startDateInput = document.getElementById('startDate').value;
-    const endDateInput = document.getElementById('endDate').value;
-    if (!startDateInput || !endDateInput) return;
+  const btns = container.querySelectorAll('.analytics-tab-btn');
+  const line = container.querySelector('#tabLine');
 
-    showSpinner();
-    const result = await apiCall('/api/finance');
-    hideSpinner();
+  function setTab(tabId) {
+    const activeBtn = container.querySelector(`.analytics-tab-btn[data-tab="${tabId}"]`);
+    const parentRect = activeBtn.parentElement.getBoundingClientRect();
+    const btnRect = activeBtn.getBoundingClientRect();
+    line.style.width = btnRect.width + 'px';
+    line.style.transform = `translateX(${btnRect.left - parentRect.left}px)`;
 
-    if (!result.ok) {
-      document.getElementById('summary').innerHTML = '<div class="alert">Ошибка загрузки данных</div>';
-      return;
-    }
-
-    let transactions = result.data.transactions || [];
-    const start = new Date(startDateInput);
-    const end = new Date(endDateInput);
-    end.setHours(23, 59, 59, 999);
-
-    transactions = transactions.filter(t => {
-      const dateObj = parseCustomDate(t.date);
-      return dateObj >= start && dateObj <= end;
+    btns.forEach(btn => {
+      btn.style.color = btn.dataset.tab === tabId ? '#f97316' : '#64748b';
+      btn.style.fontWeight = btn.dataset.tab === tabId ? '700' : '600';
     });
 
-    const totalIncome = transactions.filter(t => t.type === 'Доход').reduce((s, t) => s + t.amount, 0);
-    const totalExpense = transactions.filter(t => t.type === 'Расход').reduce((s, t) => s + t.amount, 0);
-    const profit = totalIncome - totalExpense;
-
-    document.getElementById('summary').innerHTML = `
-      <div class="card">
-        📊 <strong>Доходы:</strong> ${totalIncome.toFixed(2)} BYN<br>
-        📉 <strong>Расходы:</strong> ${totalExpense.toFixed(2)} BYN<br>
-        💰 <strong>Прибыль:</strong> ${profit.toFixed(2)} BYN
-      </div>
-    `;
-
-    const listDiv = document.getElementById('transactionsList');
-    if (transactions.length === 0) {
-      listDiv.innerHTML = '<div class="card">📭 Нет операций за выбранный период</div>';
-      return;
+    const content = container.querySelector('#tabContent');
+    if (tabId === 'finance') {
+      renderFinanceContent(content);
+    } else {
+      renderProductionContent(content);
     }
-
-    transactions.sort((a, b) => parseCustomDate(b.date) - parseCustomDate(a.date));
-
-    let html = '<div class="card"><table style="width:100%; border-collapse: collapse;">';
-    html += '<thead><tr><th>Дата</th><th>Тип</th><th>Категория</th><th>Сумма</th><th>Комментарий</th></tr></thead><tbody>';
-    for (const t of transactions) {
-      const displayDate = formatDate(t.date);
-      html += `<tr>
-        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${escapeHtml(displayDate)}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${escapeHtml(t.type)}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${escapeHtml(t.category)}</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align:right;">${t.amount.toFixed(2)} BYN</td>
-        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${escapeHtml(t.comment || '')}</td>
-      </tr>`;
-    }
-    html += '</tbody></table></div>';
-    listDiv.innerHTML = html;
   }
 
-  document.getElementById('filterBtn').onclick = () => {
-    const s = document.getElementById('startDate').value;
-    const e = document.getElementById('endDate').value;
-    if (s && e) loadData();
-  };
-  loadData();
+  // ========== ВКЛАДКА "ФИНАНСЫ" (кликабельные строки) ==========
+  function renderFinanceContent(containerElement) {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    const firstDayStr = `${year}-${String(month+1).padStart(2,'0')}-01`;
+    const todayStr = `${year}-${String(month+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
 
-  // Добавление новой операции
-  document.getElementById('addTransactionBtn').onclick = () => {
-    const modal = document.createElement('div');
-    modal.className = 'modal';
-    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-    modal.innerHTML = `
-      <div class="modal-content">
-        <h3>➕ Новая операция</h3>
-        <label>Тип</label>
-        <select id="transType"><option>Доход</option><option>Расход</option></select>
-        <label>Категория</label>
-        <input id="transCategory" placeholder="Например, Заказ, Зарплата, Аренда">
-        <label>Сумма (BYN)</label>
-        <input type="text" id="transAmount" placeholder="0,00">
-        <label>Комментарий</label>
-        <input id="transComment" placeholder="Необязательно">
-        <div class="modal-buttons">
-          <button id="saveTransBtn">Сохранить</button>
-          <button id="closeTransBtn" class="secondary">Отмена</button>
+    containerElement.innerHTML = `
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:16px;">
+        <input type="date" id="startDate" value="${firstDayStr}" style="flex:1;">
+        <input type="date" id="endDate" value="${todayStr}" style="flex:1;">
+        <button id="filterBtn" class="secondary" style="width:auto;">Показать</button>
+      </div>
+      <div id="financeSummary"></div>
+      <div id="financeList" style="max-height:400px; overflow-y:auto;"></div>
+      <button id="addTransactionBtn">➕ Добавить операцию</button>
+    `;
+
+    async function loadFinanceData() {
+      const startDateInput = document.getElementById('startDate').value;
+      const endDateInput = document.getElementById('endDate').value;
+      if (!startDateInput || !endDateInput) return;
+
+      showSpinner();
+      const result = await apiCall('/api/finance');
+      hideSpinner();
+
+      if (!result.ok) {
+        document.getElementById('financeSummary').innerHTML = '<div class="alert">Ошибка загрузки данных</div>';
+        return;
+      }
+
+      let transactions = result.data.transactions || [];
+      const start = new Date(startDateInput);
+      const end = new Date(endDateInput);
+      end.setHours(23, 59, 59, 999);
+
+      transactions = transactions.filter(t => {
+        const dateObj = parseCustomDate(t.date);
+        return dateObj >= start && dateObj <= end;
+      });
+
+      const totalIncome = transactions.filter(t => t.type === 'Доход').reduce((s, t) => s + t.amount, 0);
+      const totalExpense = transactions.filter(t => t.type === 'Расход').reduce((s, t) => s + t.amount, 0);
+      const profit = totalIncome - totalExpense;
+
+      document.getElementById('financeSummary').innerHTML = `
+        <div class="card">
+          📊 <strong>Доходы:</strong> ${totalIncome.toFixed(2)} BYN<br>
+          📉 <strong>Расходы:</strong> ${totalExpense.toFixed(2)} BYN<br>
+          💰 <strong>Прибыль:</strong> ${profit.toFixed(2)} BYN
+        </div>
+      `;
+
+      const listDiv = document.getElementById('financeList');
+      if (transactions.length === 0) {
+        listDiv.innerHTML = '<div class="card">📭 Нет операций за выбранный период</div>';
+        return;
+      }
+
+      transactions.sort((a, b) => parseCustomDate(b.date) - parseCustomDate(a.date));
+
+      let html = '<div class="card"><table style="width:100%; border-collapse: collapse;">';
+      html += '<thead><tr><th>Дата</th><th>Тип</th><th>Категория</th><th>Сумма</th><th>Комментарий</th></tr></thead><tbody>';
+      for (const t of transactions) {
+        const displayDate = formatDate(t.date);
+        html += `<tr class="transaction-row" data-id="${t.id}" style="cursor:pointer;">
+          <td>${escapeHtml(displayDate)}</td>
+          <td>${escapeHtml(t.type)}</td>
+          <td>${escapeHtml(t.category)}</td>
+          <td class="amount">${t.amount.toFixed(2)} BYN</td>
+          <td>${escapeHtml(t.comment || '')}</td>
+        </tr>`;
+      }
+      html += '</tbody></table></div>';
+      listDiv.innerHTML = html;
+
+      // === ОБРАБОТЧИКИ КЛИКА НА СТРОКИ ===
+      document.querySelectorAll('.transaction-row').forEach(row => {
+        row.addEventListener('click', function() {
+          const id = parseInt(this.dataset.id);
+          const transaction = transactions.find(t => t.id === id);
+          if (transaction) {
+            openEditTransactionModal(transaction, loadFinanceData);
+          }
+        });
+      });
+    }
+
+    // Модалка редактирования транзакции
+    function openEditTransactionModal(transaction, refreshCallback) {
+      const modal = document.createElement('div');
+      modal.className = 'modal';
+      modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+      const dateObj = parseCustomDate(transaction.date);
+      const dateStr = dateObj.toISOString().split('T')[0];
+
+      modal.innerHTML = `
+        <div class="modal-content" style="max-width:500px;">
+          <h3>✏️ Редактирование транзакции #${transaction.id}</h3>
+          <label>Дата</label>
+          <input type="date" id="editTransDate" value="${dateStr}">
+          <label>Тип</label>
+          <select id="editTransType">
+            <option value="Доход" ${transaction.type === 'Доход' ? 'selected' : ''}>Доход</option>
+            <option value="Расход" ${transaction.type === 'Расход' ? 'selected' : ''}>Расход</option>
+          </select>
+          <label>Категория</label>
+          <input type="text" id="editTransCategory" value="${escapeHtml(transaction.category)}">
+          <label>Сумма (BYN)</label>
+          <input type="text" id="editTransAmount" value="${transaction.amount.toFixed(2).replace('.', ',')}" placeholder="0,00">
+          <label>Комментарий</label>
+          <input type="text" id="editTransComment" value="${escapeHtml(transaction.comment || '')}">
+          <div class="modal-buttons">
+            <button id="saveTransEditBtn">💾 Сохранить</button>
+            <button id="deleteTransBtn" style="background:#ef4444;">🗑️ Удалить</button>
+            <button id="closeTransEditBtn" class="secondary">Отмена</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+
+      document.getElementById('deleteTransBtn').onclick = async () => {
+        if (!confirm('Удалить транзакцию?')) return;
+        showSpinner();
+        const result = await apiCall(`/api/transactions/${transaction.id}`, { method: 'DELETE' });
+        hideSpinner();
+        if (result.ok) {
+          showToast('Транзакция удалена');
+          modal.remove();
+          if (refreshCallback) refreshCallback();
+        } else {
+          showToast(result.data.error || 'Ошибка удаления', true);
+        }
+      };
+
+      document.getElementById('saveTransEditBtn').onclick = async () => {
+        const date = document.getElementById('editTransDate').value;
+        const type = document.getElementById('editTransType').value;
+        const category = document.getElementById('editTransCategory').value.trim();
+        const amount = normalizePrice(document.getElementById('editTransAmount').value);
+        const comment = document.getElementById('editTransComment').value.trim();
+
+        if (!category || isNaN(amount) || amount <= 0) {
+          showToast('Заполните все поля корректно', true);
+          return;
+        }
+
+        showSpinner();
+        const result = await apiCall(`/api/transactions/${transaction.id}`, {
+          method: 'PUT',
+          body: JSON.stringify({ date, type, category, amount, comment })
+        });
+        hideSpinner();
+        if (result.ok) {
+          showToast('Транзакция обновлена');
+          modal.remove();
+          if (refreshCallback) refreshCallback();
+        } else {
+          showToast(result.data.error || 'Ошибка обновления', true);
+        }
+      };
+
+      document.getElementById('closeTransEditBtn').onclick = () => modal.remove();
+    }
+
+    // Фильтр
+    document.getElementById('filterBtn').onclick = () => {
+      const s = document.getElementById('startDate').value;
+      const e = document.getElementById('endDate').value;
+      if (s && e) loadFinanceData();
+    };
+
+    // Добавление операции (как было)
+    document.getElementById('addTransactionBtn').onclick = () => {
+      const modal = document.createElement('div');
+      modal.className = 'modal';
+      modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+      modal.innerHTML = `
+        <div class="modal-content">
+          <h3>➕ Новая операция</h3>
+          <label>Тип</label>
+          <select id="transType"><option>Доход</option><option>Расход</option></select>
+          <label>Категория</label>
+          <input id="transCategory" placeholder="Например, Заказ, Зарплата, Аренда">
+          <label>Сумма (BYN)</label>
+          <input type="text" id="transAmount" placeholder="0,00">
+          <label>Комментарий</label>
+          <input id="transComment" placeholder="Необязательно">
+          <div class="modal-buttons">
+            <button id="saveTransBtn">Сохранить</button>
+            <button id="closeTransBtn" class="secondary">Отмена</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+
+      const amountInput = document.getElementById('transAmount');
+      amountInput.addEventListener('blur', () => formatPriceInput(amountInput));
+
+      document.getElementById('saveTransBtn').onclick = async () => {
+        const type = document.getElementById('transType').value;
+        const cat = document.getElementById('transCategory').value.trim();
+        const amt = normalizePrice(document.getElementById('transAmount').value);
+        const comm = document.getElementById('transComment').value;
+        if (!cat || isNaN(amt) || amt <= 0) {
+          showToast('Заполните категорию и корректную сумму', true);
+          return;
+        }
+        showSpinner();
+        const result = await apiCall('/api/transactions', {
+          method: 'POST',
+          body: JSON.stringify({ type, category: cat, amount: amt, comment: comm })
+        });
+        hideSpinner();
+        if (result.ok) {
+          showToast('Операция добавлена');
+          modal.remove();
+          loadFinanceData();
+        } else {
+          showToast(result.data.error || 'Ошибка добавления', true);
+        }
+      };
+      document.getElementById('closeTransBtn').onclick = () => modal.remove();
+    };
+
+    loadFinanceData();
+  }
+
+  // ========== ВКЛАДКА "ПРОИЗВОДСТВО" (заглушка) ==========
+  function renderProductionContent(containerElement) {
+    containerElement.innerHTML = `
+      <h2 style="font-size:1.2rem; margin: 0 0 12px 0;"></h2>
+      <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px;">
+        <div style="flex:1;"><label></label><input type="date" id="prodStart" value="${new Date().toISOString().split('T')[0]}" style="width:100%;"></div>
+        <div style="flex:1;"><label></label><input type="date" id="prodEnd" value="${new Date().toISOString().split('T')[0]}" style="width:100%;"></div>
+        <button id="prodFilterBtn" class="secondary" style="width:auto;">Показать</button>
+      </div>
+      <div id="prodSummary"></div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div>
+          <h4 style="margin:0 0 8px 0;">📦 Произведено</h4>
+          <div class="card" id="producedList">Нет данных</div>
+        </div>
+        <div>
+          <h4 style="margin:0 0 8px 0;">💰 Продано</h4>
+          <div class="card" id="soldList">Нет данных</div>
         </div>
       </div>
     `;
-    document.body.appendChild(modal);
 
-    // Добавляем обработчик blur для форматирования суммы
-    const amountInput = document.getElementById('transAmount');
-if (amountInput) {
-  amountInput.addEventListener('blur', () => formatPriceInput(amountInput));
-}
-
-    document.getElementById('saveTransBtn').onclick = async () => {
-      const type = document.getElementById('transType').value;
-      const cat = document.getElementById('transCategory').value.trim();
-      const amt = normalizePrice(document.getElementById('transAmount').value);
-      const comm = document.getElementById('transComment').value;
-      if (!cat || isNaN(amt) || amt <= 0) {
-        showToast('Заполните категорию и корректную сумму', true);
-        return;
-      }
-      showSpinner();
-      const result = await apiCall('/api/transactions', {
-        method: 'POST',
-        body: JSON.stringify({ type, category: cat, amount: amt, comment: comm })
-      });
-      hideSpinner();
-      if (result.ok) {
-        showToast('Операция добавлена');
-        modal.remove();
-        loadData(); // обновляем список
-      } else {
-        showToast(result.data.error || 'Ошибка добавления', true);
-      }
+    document.getElementById('prodFilterBtn').onclick = () => {
+      document.getElementById('prodSummary').innerHTML = `
+        <div class="card">
+          <div><strong>📊 Итого за период:</strong></div>
+          <div>Произведено: 120 шт</div>
+          <div>Продано: 95 шт</div>
+        </div>
+      `;
+      document.getElementById('producedList').innerHTML = `
+        <table style="width:100%;"><thead><tr><th>Наименование</th><th>Кол-во</th></tr></thead><tbody>
+          <tr><td>Моти</td><td>50</td></tr>
+          <tr><td>Сырки</td><td>70</td></tr>
+        </tbody></table>
+      `;
+      document.getElementById('soldList').innerHTML = `
+        <table style="width:100%;"><thead><tr><th>Наименование</th><th>Кол-во</th></tr></thead><tbody>
+          <tr><td>Моти</td><td>40</td></tr>
+          <tr><td>Сырки</td><td>55</td></tr>
+        </tbody></table>
+      `;
     };
-    document.getElementById('closeTransBtn').onclick = () => modal.remove();
-  };
+    document.getElementById('prodFilterBtn').click();
+  }
+
+  // Инициализация
+  setTimeout(() => {
+    const firstBtn = container.querySelector('.analytics-tab-btn[data-tab="finance"]');
+    if (firstBtn) firstBtn.click();
+  }, 10);
+
+  btns.forEach(btn => {
+    btn.onclick = () => setTab(btn.dataset.tab);
+  });
 }
+
+
 // =========================== 9. ВКЛАДКА "ЕЩЁ" ===========================
 function renderMoreTab(container) {
   if (!document.getElementById('slideMenuOverlay')) {
