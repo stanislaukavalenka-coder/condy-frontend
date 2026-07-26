@@ -2133,15 +2133,15 @@ function renderAnalyticsTab(container) {
     const todayStr = `${year}-${String(month+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
 
     containerElement.innerHTML = `
-      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:16px;">
-        <input type="date" id="startDate" value="${firstDayStr}" style="flex:1;">
-        <input type="date" id="endDate" value="${todayStr}" style="flex:1;">
-        <button id="filterBtn" class="secondary" style="width:auto;">Показать</button>
-      </div>
-      <div id="financeSummary"></div>
-      <div id="financeList" style="max-height:400px; overflow-y:auto;"></div>
-      <button id="addTransactionBtn">➕ Добавить операцию</button>
-    `;
+  <div style="display:flex; gap:8px; flex-wrap:nowrap; align-items:center; margin-bottom:12px;">
+    <input type="date" id="startDate" value="${firstDayStr}" style="flex:1; min-width:0;">
+    <input type="date" id="endDate" value="${todayStr}" style="flex:1; min-width:0;">
+    <button id="filterBtn" class="secondary" style="width:auto; flex-shrink:0;">Показать</button>
+  </div>
+  <div id="financeSummary"></div>
+  <button id="addTransactionBtn" style="width:auto; margin-top:8px; margin-bottom:12px;">➕ Добавить операцию</button>
+  <div id="financeList" style="max-height:400px; overflow-y:auto;"></div>
+`;
 
     async function loadFinanceData() {
       const startDateInput = document.getElementById('startDate').value;
