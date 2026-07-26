@@ -2204,16 +2204,28 @@ function renderAnalyticsTab(container) {
       html += '</tbody></table></div>';
       listDiv.innerHTML = html;
 
-      // === ОБРАБОТЧИКИ КЛИКА НА СТРОКИ ===
-      document.querySelectorAll('.transaction-row').forEach(row => {
-        row.addEventListener('click', function() {
-          const id = parseInt(this.dataset.id);
-          const transaction = transactions.find(t => t.id === id);
-          if (transaction) {
-            openEditTransactionModal(transaction, loadFinanceData);
-          }
-        });
-      });
+      // === ОБРАБОТЧИКИ КЛИКА НА СТРОКИ (делегирование) ===
+const financeList = document.getElementById('financeList');
+// Удаляем старый обработчик, если он уже был (чтобы не дублировать)
+if (financeList._clickHandler) {
+  financeList.removeEventListener('click', financeList._clickHandler);
+}
+
+financeList._clickHandler = function(e) {
+  const row = e.target.closest('.transaction-row');
+  if (!row) return;
+  const id = parseInt(row.dataset.id);
+  console.log('Клик по строке, id:', id); // отладка
+  const transaction = transactions.find(t => t.id === id);
+  if (transaction) {
+    console.log('Транзакция найдена:', transaction);
+    openEditTransactionModal(transaction, loadFinanceData);
+  } else {
+    console.warn('Транзакция с id', id, 'не найдена в массиве', transactions);
+  }
+};
+
+financeList.addEventListener('click', financeList._clickHandler);
     }
 
     // Модалка редактирования транзакции
