@@ -834,12 +834,13 @@ function showTab(tabId) {
   document.querySelectorAll('.nav-item').forEach(btn => btn.classList.toggle('active', btn.getAttribute('data-tab') === tabId));
   const container = document.getElementById('mainContent');
   if (tabId === 'orders') renderOrdersTab(container);
-  else if (tabId === 'recipes') renderRecipesTab(container);
-  else if (tabId === 'market') renderMarketTab(container);
+  else if (tabId === 'calculator') renderCalculatorTab(container);
+  else if (tabId === 'stock') renderStockTab(container);
   else if (tabId === 'analytics') renderAnalyticsTab(container);
   else if (tabId === 'more') renderMoreTab(container);
+  // Если у вас есть другие вкладки (recipes, market) – добавьте их по аналогии
+  // но пока они не реализованы, можно их закомментировать или оставить как есть
 }
-
 // =========================== 4. ЗАКАЗЫ (исправленные, безопасные) ===========================
 function renderOrdersTab(container) {
   container.innerHTML = `
