@@ -1001,12 +1001,14 @@ async function loadOrdersForDate(dateStr) {
     const items = itemsMap[o.id] || [];
     let itemsHtml = '';
     if (items.length) {
-      const shortList = items.slice(0, 2).map(item => {
-        const product = cachedProducts.find(p => p.id === item.productId);
-        return product ? product.name : `Товар #${item.productId}`;
-      }).join(', ');
-      itemsHtml = `<div style="font-size:0.75rem; color:#555;">🛒 ${shortList}${items.length > 2 ? ` +${items.length-2}` : ''}</div>`;
-    }
+  const itemStrings = items.map(item => {
+    const product = cachedProducts.find(p => p.id === item.productId);
+    const name = product ? product.name : `Товар #${item.productId}`;
+    const qty = item.quantity || 1;
+    return `${name} (${qty} шт)`;
+  });
+  itemsHtml = `<div style="font-size:0.75rem; color:#555; margin-top:2px; word-wrap:break-word;">🛒 ${itemStrings.join(', ')}</div>`;
+}
 
     html += `<div class="order-card-clickable status-${statusClass}" data-id="${o.id}">
       <b>#${o.id}</b> — ${client ? escapeHtml(client.name) : 'Неизвестный'}${isNew ? ' <span class="new-badge" style="background:#f97316; color:white; font-size:0.7rem; padding:2px 6px; border-radius:12px; margin-left:6px;">new</span>' : ''}<br>
