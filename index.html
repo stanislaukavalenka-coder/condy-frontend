@@ -2133,13 +2133,15 @@ function renderAnalyticsTab(container) {
     const todayStr = `${year}-${String(month+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
 
     containerElement.innerHTML = `
-  <div style="display:flex; gap:8px; flex-wrap:nowrap; align-items:center; margin-bottom:12px;">
-    <input type="date" id="startDate" value="${firstDayStr}" style="flex:1; min-width:0;">
-    <input type="date" id="endDate" value="${todayStr}" style="flex:1; min-width:0;">
-    <button id="filterBtn" class="secondary" style="width:auto; flex-shrink:0;">Показать</button>
+  <div style="display:flex; gap:6px; flex-wrap:nowrap; align-items:center; margin-bottom:8px;">
+    <input type="date" id="startDate" value="${firstDayStr}" style="flex:0 1 100px; min-width:0; font-size:0.8rem; padding:4px 6px;">
+    <input type="date" id="endDate" value="${todayStr}" style="flex:0 1 100px; min-width:0; font-size:0.8rem; padding:4px 6px;">
+    <button id="filterBtn" class="secondary" style="width:auto; flex-shrink:0; font-size:0.75rem; padding:4px 10px;">Показать</button>
   </div>
   <div id="financeSummary"></div>
-  <button id="addTransactionBtn" style="width:auto; margin-top:8px; margin-bottom:12px;">➕ Добавить операцию</button>
+  <div style="display:flex; justify-content:center; margin:12px 0;">
+ <button id="addTransactionBtn" style="width:80%; max-width:400px; padding:6px 0; font-size:0.85rem;">➕ Добавить операцию</button>
+  </div>
   <div id="financeList" style="max-height:400px; overflow-y:auto;"></div>
 `;
 
