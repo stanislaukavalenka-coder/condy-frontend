@@ -1000,14 +1000,14 @@ async function loadOrdersForDate(dateStr) {
 
     const items = itemsMap[o.id] || [];
     let itemsHtml = '';
-    if (items.length) {
-  const itemStrings = items.map(item => {
+   if (items.length) {
+  const itemHtml = items.map(item => {
     const product = cachedProducts.find(p => p.id === item.productId);
-    const name = product ? product.name : `Товар #${item.productId}`;
+    const name = product ? escapeHtml(product.name) : `Товар #${item.productId}`;
     const qty = item.quantity || 1;
     return `${name} (${qty} шт)`;
-  });
-  itemsHtml = `<div style="font-size:0.75rem; color:#555; margin-top:2px; word-wrap:break-word;">🛒 ${itemStrings.join(', ')}</div>`;
+  }).join('<br>');
+  itemsHtml = `<div style="font-size:0.75rem; color:#555; margin-top:2px;">🛒 ${itemHtml}</div>`;
 }
 
     html += `<div class="order-card-clickable status-${statusClass}" data-id="${o.id}">
