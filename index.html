@@ -1591,22 +1591,20 @@ async function showOrderForm() {
       <tbody>
   `;
 
-  const activeProducts = (cachedProducts || []).filter(p => p.isActive);
-
   orderProducts.forEach((p, idx) => {
     const displayName = p.customName ? p.customName : (p.name || '');
     const sum = (p.price || 0) * (p.quantity || 1);
-    const datalistId = `productsDatalist_${idx}`;
+    const inputId = `productInput_${idx}`;
     html += `
       <tr data-idx="${idx}">
         <td>
-          <input type="text" class="edit-product-name" list="${datalistId}" value="${escapeHtml(displayName)}" placeholder="Название товара">
-          <datalist id="${datalistId}">
-            ${activeProducts.map(prod => `<option value="${escapeHtml(prod.name)}" data-price="${prod.price}"></option>`).join('')}
-          </datalist>
+          <div class="custom-dropdown">
+            <input type="text" class="edit-product-name" id="${inputId}" value="${escapeHtml(displayName)}" placeholder="Название товара" autocomplete="off">
+            <div class="custom-dropdown-list" id="dropdown_${idx}"></div>
+          </div>
         </td>
         <td><input type="number" class="edit-product-quantity" value="${p.quantity}" min="1" step="1"></td>
-        <td><input type="number" class="edit-product-price" value="${p.price}" step="0.01" min="0"></td>
+        <td><input type="text" class="edit-product-price" value="${p.price.toFixed(2).replace('.', ',')}" placeholder="0,00"></td>
         <td class="product-sum">${sum.toFixed(2)}</td>
         <td class="product-remove"><button class="remove-edit-product" data-idx="${idx}">✖</button></td>
       </tr>
@@ -1615,53 +1613,134 @@ async function showOrderForm() {
   html += `</tbody></table>`;
   container.innerHTML = html;
 
-  // Обработчики
-  document.querySelectorAll('.edit-product-name').forEach((input, idx) => {
-    input.addEventListener('change', async (e) => {
-      const newName = e.target.value.trim();
-      if (!newName) return;
-      if (!cachedProducts.length) await fetchProducts();
-      const found = cachedProducts.find(p => p.name.toLowerCase() === newName.toLowerCase());
-      if (found) {
-        orderProducts[idx].productId = found.id;
-        orderProducts[idx].name = found.name;
-        orderProducts[idx].price = found.price;
-        orderProducts[idx].customName = null;
-        const priceInput = e.target.closest('tr').querySelector('.edit-product-price');
-        if (priceInput) priceInput.value = found.price.toFixed(2);
-        e.target.value = found.name;
-      } else {
-        orderProducts[idx].productId = null;
-        orderProducts[idx].name = null;
-        orderProducts[idx].customName = newName;
-      }
-      calculateTotalAndRowSums();
-    });
+  // Настройка для каждой строки
+  orderProducts.forEach((p, idx) => {
+    const nameInput = document.getElementById(`productInput_${idx}`);
+    const dropdown = document.getElementById(`dropdown_${idx}`);
+
+    // === ВЫПАДАЮЩИЙ СПИСОК ТОВАРОВ ===
+    if (nameInput && dropdown) {
+      nameInput.addEventListener('input', function() {
+        const query = this.value.trim().toLowerCase();
+        const activeProducts = (cachedProducts || []).filter(prod => prod.isActive);
+        let filtered = activeProducts;
+        if (query) {
+          filtered = activeProducts.filter(prod => prod.name.toLowerCase().includes(query));
+        }
+        if (filtered.length === 0) {
+          dropdown.innerHTML = '<div class="custom-dropdown-item" style="color:#999;cursor:default;">Нет совпадений</div>';
+          dropdown.classList.add('show');
+          return;
+        }
+        let listHtml = '';
+        filtered.forEach(prod => {
+          listHtml += `
+            <div class="custom-dropdown-item" data-id="${prod.id}" data-name="${escapeHtml(prod.name)}" data-price="${prod.price}">
+              <span class="item-name">${escapeHtml(prod.name)}</span>
+              <span class="item-price">${prod.price.toFixed(2)} BYN</span>
+            </div>
+          `;
+        });
+        dropdown.innerHTML = listHtml;
+        dropdown.classList.add('show');
+
+        dropdown.querySelectorAll('.custom-dropdown-item').forEach(item => {
+          item.addEventListener('mousedown', function(e) {
+            e.preventDefault();
+            const id = parseInt(this.dataset.id);
+            const name = this.dataset.name;
+            const price = parseFloat(this.dataset.price);
+            const product = cachedProducts.find(p => p.id === id);
+            if (product) {
+              orderProducts[idx].productId = product.id;
+              orderProducts[idx].name = product.name;
+              orderProducts[idx].price = product.price;
+              orderProducts[idx].customName = null;
+              nameInput.value = product.name;
+              const priceInput = nameInput.closest('tr').querySelector('.edit-product-price');
+              if (priceInput) priceInput.value = product.price.toFixed(2).replace('.', ',');
+              calculateTotalAndRowSums();
+            }
+            dropdown.classList.remove('show');
+          });
+        });
+      });
+
+      nameInput.addEventListener('blur', function() {
+        setTimeout(() => dropdown.classList.remove('show'), 200);
+      });
+
+      nameInput.addEventListener('change', function() {
+        const newName = this.value.trim();
+        if (!newName) return;
+        const found = cachedProducts.find(p => p.name.toLowerCase() === newName.toLowerCase());
+        if (found) {
+          orderProducts[idx].productId = found.id;
+          orderProducts[idx].name = found.name;
+          orderProducts[idx].price = found.price;
+          orderProducts[idx].customName = null;
+          const priceInput = this.closest('tr').querySelector('.edit-product-price');
+          if (priceInput) priceInput.value = found.price.toFixed(2).replace('.', ',');
+          this.value = found.name;
+        } else {
+          orderProducts[idx].productId = null;
+          orderProducts[idx].name = null;
+          orderProducts[idx].customName = newName;
+        }
+        calculateTotalAndRowSums();
+      });
+    }
+
+    // === КОЛИЧЕСТВО ===
+    const qtyInput = document.querySelector(`tr[data-idx="${idx}"] .edit-product-quantity`);
+    if (qtyInput) {
+      qtyInput.addEventListener('input', function() {
+        let qty = parseInt(this.value);
+        if (isNaN(qty) || qty < 1) qty = 1;
+        orderProducts[idx].quantity = qty;
+        calculateTotalAndRowSums();
+      });
+    }
+
+    // === ЦЕНА (интеллектуальное форматирование) ===
+    const priceInput = document.querySelector(`tr[data-idx="${idx}"] .edit-product-price`);
+    if (priceInput) {
+      priceInput.addEventListener('input', function() {
+        let raw = this.value.trim().replace(',', '.');
+        let num = parseFloat(raw);
+        if (isNaN(num)) num = 0;
+        orderProducts[idx].price = num;
+        calculateTotalAndRowSums();
+      });
+
+      priceInput.addEventListener('blur', function() {
+        let raw = this.value.trim();
+        if (!raw.includes(',') && !raw.includes('.')) {
+          let num = parseFloat(raw);
+          if (!isNaN(num)) {
+            orderProducts[idx].price = num;
+            calculateTotalAndRowSums();
+            return;
+          }
+        }
+        formatPriceInput(this);
+        let num = normalizePrice(this.value);
+        orderProducts[idx].price = num;
+        calculateTotalAndRowSums();
+      });
+    }
+
+    // === УДАЛЕНИЕ ===
+    const removeBtn = document.querySelector(`tr[data-idx="${idx}"] .remove-edit-product`);
+    if (removeBtn) {
+      removeBtn.addEventListener('click', function() {
+        orderProducts.splice(idx, 1);
+        renderProductRows();
+        calculateTotalAndRowSums();
+      });
+    }
   });
-  document.querySelectorAll('.edit-product-quantity').forEach((input, idx) => {
-    input.addEventListener('input', (e) => {
-      let qty = parseInt(e.target.value);
-      if (isNaN(qty) || qty < 1) qty = 1;
-      orderProducts[idx].quantity = qty;
-      calculateTotalAndRowSums();
-    });
-  });
-  document.querySelectorAll('.edit-product-price').forEach((input, idx) => {
-    input.addEventListener('input', (e) => {
-      let price = normalizePrice(e.target.value);
-      orderProducts[idx].price = price;
-      e.target.value = price.toFixed(2);
-      calculateTotalAndRowSums();
-    });
-  });
-  document.querySelectorAll('.remove-edit-product').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const idx = parseInt(btn.dataset.idx);
-      orderProducts.splice(idx, 1);
-      renderProductRows();
-      calculateTotalAndRowSums();
-    });
-  });
+
   calculateTotalAndRowSums();
 }
 
