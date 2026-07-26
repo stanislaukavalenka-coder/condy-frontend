@@ -2140,7 +2140,7 @@ function renderAnalyticsTab(container) {
   </div>
   <div id="financeSummary"></div>
   <div style="display:flex; justify-content:center; margin:12px 0;">
- <button id="addTransactionBtn" style="width:80%; max-width:400px; padding:6px 0; font-size:0.85rem;">➕ Добавить операцию</button>
+ <button id="addTransactionBtn" style="width:80%; max-width:300px; padding:4px 0; font-size:0.85rem;">➕ Добавить операцию</button>
   </div>
   <div id="financeList" style="max-height:400px; overflow-y:auto;"></div>
 `;
@@ -2230,6 +2230,7 @@ financeList.addEventListener('click', financeList._clickHandler);
 
     // Модалка редактирования транзакции
     function openEditTransactionModal(transaction, refreshCallback) {
+      console.log('openEditTransactionModal вызвана', transaction);
       const modal = document.createElement('div');
       modal.className = 'modal';
       modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
