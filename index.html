@@ -2148,10 +2148,10 @@ function renderFinanceContent(containerElement) {
       <div id="financeList" style="max-height:400px; overflow-y:auto;"></div>
     `;
 
-    // Храним актуальный список транзакций в замыкании
+    // === Хранилище актуальных транзакций для обработчика ===
     let currentTransactions = [];
 
-    // === ЕДИНСТВЕННЫЙ ОБРАБОТЧИК КЛИКА (добавляется один раз) ===
+    // === ЕДИНСТВЕННЫЙ ОБРАБОТЧИК (делегирование) ===
     const financeList = document.getElementById('financeList');
     financeList.addEventListener('click', function(e) {
         const row = e.target.closest('.transaction-row');
@@ -2165,7 +2165,7 @@ function renderFinanceContent(containerElement) {
         }
     });
 
-    // Функция загрузки данных
+    // === ЗАГРУЗКА ДАННЫХ ===
     async function loadFinanceData() {
         const startDateInput = document.getElementById('startDate').value;
         const endDateInput = document.getElementById('endDate').value;
@@ -2226,13 +2226,11 @@ function renderFinanceContent(containerElement) {
         html += '</tbody></table></div>';
         listDiv.innerHTML = html;
 
-        // Сохраняем актуальный список для обработчика
         currentTransactions = transactions;
     }
 
-    // Модалка редактирования транзакции (без изменений)
+    // === МОДАЛКА РЕДАКТИРОВАНИЯ ===
     function openEditTransactionModal(transaction, refreshCallback) {
-        console.log('openEditTransactionModal вызвана', transaction);
         const modal = document.createElement('div');
         modal.className = 'modal';
         modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
@@ -2309,21 +2307,26 @@ function renderFinanceContent(containerElement) {
         document.getElementById('closeTransEditBtn').onclick = () => modal.remove();
     }
 
-    // Фильтр
+    // === ФИЛЬТР ===
     document.getElementById('filterBtn').onclick = () => {
         const s = document.getElementById('startDate').value;
         const e = document.getElementById('endDate').value;
         if (s && e) loadFinanceData();
     };
 
-    // Добавление операции
+    // === ДОБАВЛЕНИЕ ОПЕРАЦИИ (С ВЫБОРОМ ДАТЫ) ===
     document.getElementById('addTransactionBtn').onclick = () => {
         const modal = document.createElement('div');
         modal.className = 'modal';
         modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+        const todayStr = new Date().toISOString().split('T')[0];
+
         modal.innerHTML = `
             <div class="modal-content">
                 <h3>➕ Новая операция</h3>
+                <label>Дата</label>
+                <input type="date" id="newTransDate" value="${todayStr}">
                 <label>Тип</label>
                 <select id="transType"><option>Доход</option><option>Расход</option></select>
                 <label>Категория</label>
@@ -2344,18 +2347,25 @@ function renderFinanceContent(containerElement) {
         amountInput.addEventListener('blur', () => formatPriceInput(amountInput));
 
         document.getElementById('saveTransBtn').onclick = async () => {
+            const date = document.getElementById('newTransDate').value;
             const type = document.getElementById('transType').value;
             const cat = document.getElementById('transCategory').value.trim();
             const amt = normalizePrice(document.getElementById('transAmount').value);
             const comm = document.getElementById('transComment').value;
+
+            if (!date) {
+                showToast('Укажите дату', true);
+                return;
+            }
             if (!cat || isNaN(amt) || amt <= 0) {
                 showToast('Заполните категорию и корректную сумму', true);
                 return;
             }
+
             showSpinner();
             const result = await apiCall('/api/transactions', {
                 method: 'POST',
-                body: JSON.stringify({ type, category: cat, amount: amt, comment: comm })
+                body: JSON.stringify({ date, type, category: cat, amount: amt, comment: comm })
             });
             hideSpinner();
             if (result.ok) {
@@ -2366,13 +2376,13 @@ function renderFinanceContent(containerElement) {
                 showToast(result.data.error || 'Ошибка добавления', true);
             }
         };
+
         document.getElementById('closeTransBtn').onclick = () => modal.remove();
     };
 
     // Первая загрузка
     loadFinanceData();
 }
-
   // ========== ВКЛАДКА "ПРОИЗВОДСТВО" (заглушка) ==========
   function renderProductionContent(containerElement) {
     containerElement.innerHTML = `
