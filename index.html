@@ -809,7 +809,30 @@ function showToast(message, isError = false) {
   toast.classList.add('show');
   setTimeout(() => toast.classList.remove('show'), 2500);
 }
+function showConfirmModal(message, onConfirm) {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal';
+    overlay.innerHTML = `
+        <div class="modal-content" style="max-width:400px;">
+            <p style="margin-top:0;">${escapeHtml(message)}</p>
+            <div style="display:flex; gap:12px; justify-content:flex-end;">
+                <button id="confirmYes" style="width:auto; padding:8px 20px;">Да</button>
+                <button id="confirmNo" class="secondary" style="width:auto; padding:8px 20px;">Отмена</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
 
+    overlay.querySelector('#confirmYes').onclick = () => {
+        overlay.remove();
+        onConfirm();
+    };
+
+    overlay.querySelector('#confirmNo').onclick = () => overlay.remove();
+
+    // Закрытие по клику на фон
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+}
 // =========================== 3. ОСНОВНОЕ ПРИЛОЖЕНИЕ ===========================
 function renderMainApp() {
   const appDiv = document.getElementById('app');
@@ -2242,41 +2265,42 @@ function renderFinanceContent(containerElement) {
     }
 
     // === МОДАЛКА РЕДАКТИРОВАНИЯ ===
-    function openEditTransactionModal(transaction, refreshCallback) {
-        const modal = document.createElement('div');
-        modal.className = 'modal';
-        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+function openEditTransactionModal(transaction, refreshCallback) {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
 
-        const dateObj = parseCustomDate(transaction.date);
-        const dateStr = dateObj.toISOString().split('T')[0];
+    const dateObj = parseCustomDate(transaction.date);
+    const dateStr = dateObj.toISOString().split('T')[0];
 
-        modal.innerHTML = `
-            <div class="modal-content" style="max-width:500px;">
-                <h3>✏️ Редактирование транзакции #${transaction.id}</h3>
-                <label>Дата</label>
-                <input type="date" id="editTransDate" value="${dateStr}">
-                <label>Тип</label>
-                <select id="editTransType">
-                    <option value="Доход" ${transaction.type === 'Доход' ? 'selected' : ''}>Доход</option>
-                    <option value="Расход" ${transaction.type === 'Расход' ? 'selected' : ''}>Расход</option>
-                </select>
-                <label>Категория</label>
-                <input type="text" id="editTransCategory" value="${escapeHtml(transaction.category)}">
-                <label>Сумма (BYN)</label>
-                <input type="text" id="editTransAmount" value="${transaction.amount.toFixed(2).replace('.', ',')}" placeholder="0,00">
-                <label>Комментарий</label>
-                <input type="text" id="editTransComment" value="${escapeHtml(transaction.comment || '')}">
-                <div class="modal-buttons">
-                    <button id="saveTransEditBtn">💾 Сохранить</button>
-                    <button id="deleteTransBtn" style="background:#ef4444;">🗑️ Удалить</button>
-                    <button id="closeTransEditBtn" class="secondary">Отмена</button>
-                </div>
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width:500px;">
+            <h3>✏️ Редактирование транзакции #${transaction.id}</h3>
+            <label>Дата</label>
+            <input type="date" id="editTransDate" value="${dateStr}">
+            <label>Тип</label>
+            <select id="editTransType">
+                <option value="Доход" ${transaction.type === 'Доход' ? 'selected' : ''}>Доход</option>
+                <option value="Расход" ${transaction.type === 'Расход' ? 'selected' : ''}>Расход</option>
+            </select>
+            <label>Категория</label>
+            <input type="text" id="editTransCategory" value="${escapeHtml(transaction.category)}">
+            <label>Сумма (BYN)</label>
+            <input type="text" id="editTransAmount" value="${transaction.amount.toFixed(2).replace('.', ',')}" placeholder="0,00">
+            <label>Комментарий</label>
+            <input type="text" id="editTransComment" value="${escapeHtml(transaction.comment || '')}">
+            <div class="modal-buttons">
+                <button id="saveTransEditBtn">💾 Сохранить</button>
+                <button id="deleteTransBtn" style="background:#ef4444;">🗑️ Удалить</button>
+                <button id="closeTransEditBtn" class="secondary">Отмена</button>
             </div>
-        `;
-        document.body.appendChild(modal);
+        </div>
+    `;
+    document.body.appendChild(modal);
 
-        document.getElementById('deleteTransBtn').onclick = async () => {
-            if (!confirm('Удалить транзакцию?')) return;
+    // === УДАЛЕНИЕ С КАСТОМНЫМ ПОДТВЕРЖДЕНИЕМ ===
+    document.getElementById('deleteTransBtn').onclick = () => {
+        showConfirmModal('Удалить транзакцию?', async () => {
             showSpinner();
             const result = await apiCall(`/api/transactions/${transaction.id}`, { method: 'DELETE' });
             hideSpinner();
@@ -2287,38 +2311,39 @@ function renderFinanceContent(containerElement) {
             } else {
                 showToast(result.data.error || 'Ошибка удаления', true);
             }
-        };
+        });
+    };
 
-        document.getElementById('saveTransEditBtn').onclick = async () => {
-            const date = document.getElementById('editTransDate').value;
-            const type = document.getElementById('editTransType').value;
-            const category = document.getElementById('editTransCategory').value.trim();
-            const amount = normalizePrice(document.getElementById('editTransAmount').value);
-            const comment = document.getElementById('editTransComment').value.trim();
+    // === СОХРАНЕНИЕ ===
+    document.getElementById('saveTransEditBtn').onclick = async () => {
+        const date = document.getElementById('editTransDate').value;
+        const type = document.getElementById('editTransType').value;
+        const category = document.getElementById('editTransCategory').value.trim();
+        const amount = normalizePrice(document.getElementById('editTransAmount').value);
+        const comment = document.getElementById('editTransComment').value.trim();
 
-            if (!category || isNaN(amount) || amount <= 0) {
-                showToast('Заполните все поля корректно', true);
-                return;
-            }
+        if (!category || isNaN(amount) || amount <= 0) {
+            showToast('Заполните все поля корректно', true);
+            return;
+        }
 
-            showSpinner();
-            const result = await apiCall(`/api/transactions/${transaction.id}`, {
-                method: 'PUT',
-                body: JSON.stringify({ date, type, category, amount, comment })
-            });
-            hideSpinner();
-            if (result.ok) {
-                showToast('Транзакция обновлена');
-                modal.remove();
-                if (refreshCallback) refreshCallback();
-            } else {
-                showToast(result.data.error || 'Ошибка обновления', true);
-            }
-        };
+        showSpinner();
+        const result = await apiCall(`/api/transactions/${transaction.id}`, {
+            method: 'PUT',
+            body: JSON.stringify({ date, type, category, amount, comment })
+        });
+        hideSpinner();
+        if (result.ok) {
+            showToast('Транзакция обновлена');
+            modal.remove();
+            if (refreshCallback) refreshCallback();
+        } else {
+            showToast(result.data.error || 'Ошибка обновления', true);
+        }
+    };
 
-        document.getElementById('closeTransEditBtn').onclick = () => modal.remove();
-    }
-
+    document.getElementById('closeTransEditBtn').onclick = () => modal.remove();
+}
     // === ФИЛЬТР ===
     document.getElementById('filterBtn').onclick = () => {
         const s = document.getElementById('startDate').value;
