@@ -2148,22 +2148,29 @@ function renderFinanceContent(containerElement) {
       <div id="financeList" style="max-height:400px; overflow-y:auto;"></div>
     `;
 
-    // === Хранилище актуальных транзакций для обработчика ===
+    // === Хранилище актуальных транзакций ===
     let currentTransactions = [];
 
-    // === ЕДИНСТВЕННЫЙ ОБРАБОТЧИК (делегирование) ===
-    const financeList = document.getElementById('financeList');
-    financeList.addEventListener('click', function(e) {
+    // === ЕДИНСТВЕННЫЙ ОБРАБОТЧИК (делегирование на containerElement) ===
+    if (containerElement._clickHandler) {
+        containerElement.removeEventListener('click', containerElement._clickHandler);
+    }
+
+    containerElement._clickHandler = function(e) {
         const row = e.target.closest('.transaction-row');
         if (!row) return;
         const id = parseInt(row.dataset.id);
-        const transaction = currentTransactions.find(t => t.id === id);
+        console.log('🔍 Клик по строке с id:', id);
+        // Ищем транзакцию с числовым id
+        const transaction = currentTransactions.find(t => Number(t.id) === id);
         if (transaction) {
+            console.log('✅ Транзакция найдена:', transaction);
             openEditTransactionModal(transaction, loadFinanceData);
         } else {
-            console.warn('Транзакция с id', id, 'не найдена');
+            console.warn('❌ Транзакция с id', id, 'не найдена. Всего в currentTransactions:', currentTransactions.length);
         }
-    });
+    };
+    containerElement.addEventListener('click', containerElement._clickHandler);
 
     // === ЗАГРУЗКА ДАННЫХ ===
     async function loadFinanceData() {
@@ -2189,6 +2196,9 @@ function renderFinanceContent(containerElement) {
             const dateObj = parseCustomDate(t.date);
             return dateObj >= start && dateObj <= end;
         });
+
+        // Приводим id к числу для надёжности
+        transactions = transactions.map(t => ({ ...t, id: Number(t.id) }));
 
         const totalIncome = transactions.filter(t => t.type === 'Доход').reduce((s, t) => s + t.amount, 0);
         const totalExpense = transactions.filter(t => t.type === 'Расход').reduce((s, t) => s + t.amount, 0);
@@ -2226,7 +2236,9 @@ function renderFinanceContent(containerElement) {
         html += '</tbody></table></div>';
         listDiv.innerHTML = html;
 
+        // === КЛЮЧЕВОЕ: обновляем currentTransactions ===
         currentTransactions = transactions;
+        console.log('📦 currentTransactions обновлён. Количество:', currentTransactions.length);
     }
 
     // === МОДАЛКА РЕДАКТИРОВАНИЯ ===
