@@ -1409,6 +1409,9 @@ if (priceInput) {
 
       // 3. Обновить товары заказа: удалить старые связи, добавить новые
       await apiCall(`/api/order-products/${order.id}`, { method: 'DELETE' });
+      if (!deleteRes.ok) {
+    throw new Error('Не удалось удалить старые товары из заказа');
+}
       for (const prod of orderProducts) {
         let finalProductId = prod.productId;
         let finalPrice = prod.price;
