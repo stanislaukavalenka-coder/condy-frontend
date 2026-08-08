@@ -2359,36 +2359,43 @@ function renderFinanceContent(containerElement) {
         amountInput.addEventListener('blur', () => formatPriceInput(amountInput));
 
         document.getElementById('saveTransBtn').onclick = async () => {
-            const date = document.getElementById('newTransDate').value;
-            const type = document.getElementById('transType').value;
-            const cat = document.getElementById('transCategory').value.trim();
-            const amt = normalizePrice(document.getElementById('transAmount').value);
-            const comm = document.getElementById('transComment').value;
+    const date = document.getElementById('newTransDate').value;
+    const type = document.getElementById('transType').value;
+    const cat = document.getElementById('transCategory').value.trim();
+    // Принудительно преобразуем сумму: заменяем запятую на точку и парсим
+    const rawAmount = document.getElementById('transAmount').value.trim().replace(',', '.');
+    const amt = parseFloat(rawAmount);
+    const comm = document.getElementById('transComment').value;
 
-            if (!date) {
-                showToast('Укажите дату', true);
-                return;
-            }
-            if (!cat || isNaN(amt) || amt <= 0) {
-                showToast('Заполните категорию и корректную сумму', true);
-                return;
-            }
+    if (!date) {
+        showToast('Укажите дату', true);
+        return;
+    }
+    if (!cat || isNaN(amt) || amt <= 0) {
+        showToast('Заполните категорию и корректную сумму (например, 10.50)', true);
+        return;
+    }
 
-            showSpinner();
-            const result = await apiCall('/api/transactions', {
-                method: 'POST',
-                body: JSON.stringify({ date, type, category: cat, amount: amt, comment: comm })
-            });
-            hideSpinner();
-            if (result.ok) {
-                showToast('Операция добавлена');
-                modal.remove();
-                loadFinanceData();
-            } else {
-                showToast(result.data.error || 'Ошибка добавления', true);
-            }
-        };
-
+    showSpinner();
+    const result = await apiCall('/api/transactions', {
+        method: 'POST',
+        body: JSON.stringify({ 
+            date, 
+            type, 
+            category: cat, 
+            amount: amt,   // передаём число
+            comment: comm 
+        })
+    });
+    hideSpinner();
+    if (result.ok) {
+        showToast('Операция добавлена');
+        modal.remove();
+        loadFinanceData();
+    } else {
+        showToast(result.data.error || 'Ошибка добавления', true);
+    }
+};
         document.getElementById('closeTransBtn').onclick = () => modal.remove();
     };
 
