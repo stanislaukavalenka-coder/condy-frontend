@@ -2125,7 +2125,7 @@ function renderAnalyticsTab(container) {
   }
 
   // ========== ВКЛАДКА "ФИНАНСЫ" (кликабельные строки) ==========
-  function renderFinanceContent(containerElement) {
+function renderFinanceContent(containerElement) {
     const today = new Date();
     const year = today.getFullYear();
     const month = today.getMonth();
@@ -2133,242 +2133,242 @@ function renderAnalyticsTab(container) {
     const todayStr = `${year}-${String(month+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
 
     containerElement.innerHTML = `
-  <div style="display:flex; gap:6px; flex-wrap:nowrap; align-items:center; margin-bottom:8px;">
-    <input type="date" id="startDate" value="${firstDayStr}" style="flex:0 1 100px; min-width:0; font-size:0.8rem; padding:4px 6px;">
-    <input type="date" id="endDate" value="${todayStr}" style="flex:0 1 100px; min-width:0; font-size:0.8rem; padding:4px 6px;">
-    <button id="filterBtn" class="secondary" style="width:auto; flex-shrink:0; font-size:0.75rem; padding:4px 10px;">Показать</button>
-  </div>
-  <div id="financeSummary"></div>
-  <div style="display:flex; justify-content:center; margin:12px 0;">
- <button id="addTransactionBtn" style="width:80%; max-width:300px; padding:4px 0; font-size:0.85rem;">➕ Добавить операцию</button>
-  </div>
-  <div id="financeList" style="max-height:400px; overflow-y:auto;"></div>
-`;
+      <div style="display:flex; gap:6px; flex-wrap:nowrap; align-items:center; margin-bottom:8px;">
+        <input type="date" id="startDate" value="${firstDayStr}" style="flex:0 1 100px; min-width:0; font-size:0.8rem; padding:4px 6px;">
+        <input type="date" id="endDate" value="${todayStr}" style="flex:0 1 100px; min-width:0; font-size:0.8rem; padding:4px 6px;">
+        <button id="filterBtn" class="secondary" style="width:auto; flex-shrink:0; font-size:0.75rem; padding:4px 10px;">Показать</button>
+      </div>
+      <div id="financeSummary"></div>
+      <div style="display:flex; justify-content:center; margin:12px 0;">
+        <button id="addTransactionBtn" style="width:80%; max-width:300px; padding:4px 0; font-size:0.85rem;">➕ Добавить операцию</button>
+      </div>
+      <div id="financeList" style="max-height:400px; overflow-y:auto;"></div>
+    `;
 
+    // Храним актуальный список транзакций в замыкании
+    let currentTransactions = [];
+
+    // === ЕДИНСТВЕННЫЙ ОБРАБОТЧИК КЛИКА (добавляется один раз) ===
+    const financeList = document.getElementById('financeList');
+    financeList.addEventListener('click', function(e) {
+        const row = e.target.closest('.transaction-row');
+        if (!row) return;
+        const id = parseInt(row.dataset.id);
+        const transaction = currentTransactions.find(t => t.id === id);
+        if (transaction) {
+            openEditTransactionModal(transaction, loadFinanceData);
+        } else {
+            console.warn('Транзакция с id', id, 'не найдена');
+        }
+    });
+
+    // Функция загрузки данных
     async function loadFinanceData() {
-      const startDateInput = document.getElementById('startDate').value;
-      const endDateInput = document.getElementById('endDate').value;
-      if (!startDateInput || !endDateInput) return;
+        const startDateInput = document.getElementById('startDate').value;
+        const endDateInput = document.getElementById('endDate').value;
+        if (!startDateInput || !endDateInput) return;
 
-      showSpinner();
-      const result = await apiCall('/api/finance');
-      hideSpinner();
+        showSpinner();
+        const result = await apiCall('/api/finance');
+        hideSpinner();
 
-      if (!result.ok) {
-        document.getElementById('financeSummary').innerHTML = '<div class="alert">Ошибка загрузки данных</div>';
-        return;
-      }
+        if (!result.ok) {
+            document.getElementById('financeSummary').innerHTML = '<div class="alert">Ошибка загрузки данных</div>';
+            return;
+        }
 
-      let transactions = result.data.transactions || [];
-      const start = new Date(startDateInput);
-      const end = new Date(endDateInput);
-      end.setHours(23, 59, 59, 999);
+        let transactions = result.data.transactions || [];
+        const start = new Date(startDateInput);
+        const end = new Date(endDateInput);
+        end.setHours(23, 59, 59, 999);
 
-      transactions = transactions.filter(t => {
-        const dateObj = parseCustomDate(t.date);
-        return dateObj >= start && dateObj <= end;
-      });
+        transactions = transactions.filter(t => {
+            const dateObj = parseCustomDate(t.date);
+            return dateObj >= start && dateObj <= end;
+        });
 
-      const totalIncome = transactions.filter(t => t.type === 'Доход').reduce((s, t) => s + t.amount, 0);
-      const totalExpense = transactions.filter(t => t.type === 'Расход').reduce((s, t) => s + t.amount, 0);
-      const profit = totalIncome - totalExpense;
+        const totalIncome = transactions.filter(t => t.type === 'Доход').reduce((s, t) => s + t.amount, 0);
+        const totalExpense = transactions.filter(t => t.type === 'Расход').reduce((s, t) => s + t.amount, 0);
+        const profit = totalIncome - totalExpense;
 
-      document.getElementById('financeSummary').innerHTML = `
-        <div class="card">
-          📊 <strong>Доходы:</strong> ${totalIncome.toFixed(2)} BYN<br>
-          📉 <strong>Расходы:</strong> ${totalExpense.toFixed(2)} BYN<br>
-          💰 <strong>Прибыль:</strong> ${profit.toFixed(2)} BYN
-        </div>
-      `;
+        document.getElementById('financeSummary').innerHTML = `
+            <div class="card">
+              📊 <strong>Доходы:</strong> ${totalIncome.toFixed(2)} BYN<br>
+              📉 <strong>Расходы:</strong> ${totalExpense.toFixed(2)} BYN<br>
+              💰 <strong>Прибыль:</strong> ${profit.toFixed(2)} BYN
+            </div>
+        `;
 
-      const listDiv = document.getElementById('financeList');
-      if (transactions.length === 0) {
-        listDiv.innerHTML = '<div class="card">📭 Нет операций за выбранный период</div>';
-        return;
-      }
+        const listDiv = document.getElementById('financeList');
+        if (transactions.length === 0) {
+            listDiv.innerHTML = '<div class="card">📭 Нет операций за выбранный период</div>';
+            currentTransactions = [];
+            return;
+        }
 
-      transactions.sort((a, b) => parseCustomDate(b.date) - parseCustomDate(a.date));
+        transactions.sort((a, b) => parseCustomDate(b.date) - parseCustomDate(a.date));
 
-      let html = '<div class="card"><table style="width:100%; border-collapse: collapse;">';
-      html += '<thead><tr><th>Дата</th><th>Тип</th><th>Категория</th><th>Сумма</th><th>Комментарий</th></tr></thead><tbody>';
-      for (const t of transactions) {
-        const displayDate = formatDate(t.date);
-        html += `<tr class="transaction-row" data-id="${t.id}" style="cursor:pointer;">
-          <td>${escapeHtml(displayDate)}</td>
-          <td>${escapeHtml(t.type)}</td>
-          <td>${escapeHtml(t.category)}</td>
-          <td class="amount">${t.amount.toFixed(2)} BYN</td>
-          <td>${escapeHtml(t.comment || '')}</td>
-        </tr>`;
-      }
-      html += '</tbody></table></div>';
-      listDiv.innerHTML = html;
+        let html = '<div class="card"><table style="width:100%; border-collapse: collapse;">';
+        html += '<thead><tr><th>Дата</th><th>Тип</th><th>Категория</th><th>Сумма</th><th>Комментарий</th></tr></thead><tbody>';
+        for (const t of transactions) {
+            const displayDate = formatDate(t.date);
+            html += `<tr class="transaction-row" data-id="${t.id}" style="cursor:pointer;">
+                <td>${escapeHtml(displayDate)}</td>
+                <td>${escapeHtml(t.type)}</td>
+                <td>${escapeHtml(t.category)}</td>
+                <td class="amount">${t.amount.toFixed(2)} BYN</td>
+                <td>${escapeHtml(t.comment || '')}</td>
+            </tr>`;
+        }
+        html += '</tbody></table></div>';
+        listDiv.innerHTML = html;
 
-      // === ОБРАБОТЧИКИ КЛИКА НА СТРОКИ (делегирование) ===
-const financeList = document.getElementById('financeList');
-// Удаляем старый обработчик, если он уже был (чтобы не дублировать)
-if (financeList._clickHandler) {
-  financeList.removeEventListener('click', financeList._clickHandler);
-}
-
-financeList._clickHandler = function(e) {
-  const row = e.target.closest('.transaction-row');
-  if (!row) return;
-  const id = parseInt(row.dataset.id);
-  console.log('Клик по строке, id:', id); // отладка
-  const transaction = transactions.find(t => t.id === id);
-  if (transaction) {
-    console.log('Транзакция найдена:', transaction);
-    openEditTransactionModal(transaction, loadFinanceData);
-  } else {
-    console.warn('Транзакция с id', id, 'не найдена в массиве', transactions);
-  }
-};
-
-financeList.addEventListener('click', financeList._clickHandler);
+        // Сохраняем актуальный список для обработчика
+        currentTransactions = transactions;
     }
 
-    // Модалка редактирования транзакции
+    // Модалка редактирования транзакции (без изменений)
     function openEditTransactionModal(transaction, refreshCallback) {
-      console.log('openEditTransactionModal вызвана', transaction);
-      const modal = document.createElement('div');
-      modal.className = 'modal';
-      modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+        console.log('openEditTransactionModal вызвана', transaction);
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
 
-      const dateObj = parseCustomDate(transaction.date);
-      const dateStr = dateObj.toISOString().split('T')[0];
+        const dateObj = parseCustomDate(transaction.date);
+        const dateStr = dateObj.toISOString().split('T')[0];
 
-      modal.innerHTML = `
-        <div class="modal-content" style="max-width:500px;">
-          <h3>✏️ Редактирование транзакции #${transaction.id}</h3>
-          <label>Дата</label>
-          <input type="date" id="editTransDate" value="${dateStr}">
-          <label>Тип</label>
-          <select id="editTransType">
-            <option value="Доход" ${transaction.type === 'Доход' ? 'selected' : ''}>Доход</option>
-            <option value="Расход" ${transaction.type === 'Расход' ? 'selected' : ''}>Расход</option>
-          </select>
-          <label>Категория</label>
-          <input type="text" id="editTransCategory" value="${escapeHtml(transaction.category)}">
-          <label>Сумма (BYN)</label>
-          <input type="text" id="editTransAmount" value="${transaction.amount.toFixed(2).replace('.', ',')}" placeholder="0,00">
-          <label>Комментарий</label>
-          <input type="text" id="editTransComment" value="${escapeHtml(transaction.comment || '')}">
-          <div class="modal-buttons">
-            <button id="saveTransEditBtn">💾 Сохранить</button>
-            <button id="deleteTransBtn" style="background:#ef4444;">🗑️ Удалить</button>
-            <button id="closeTransEditBtn" class="secondary">Отмена</button>
-          </div>
-        </div>
-      `;
-      document.body.appendChild(modal);
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width:500px;">
+                <h3>✏️ Редактирование транзакции #${transaction.id}</h3>
+                <label>Дата</label>
+                <input type="date" id="editTransDate" value="${dateStr}">
+                <label>Тип</label>
+                <select id="editTransType">
+                    <option value="Доход" ${transaction.type === 'Доход' ? 'selected' : ''}>Доход</option>
+                    <option value="Расход" ${transaction.type === 'Расход' ? 'selected' : ''}>Расход</option>
+                </select>
+                <label>Категория</label>
+                <input type="text" id="editTransCategory" value="${escapeHtml(transaction.category)}">
+                <label>Сумма (BYN)</label>
+                <input type="text" id="editTransAmount" value="${transaction.amount.toFixed(2).replace('.', ',')}" placeholder="0,00">
+                <label>Комментарий</label>
+                <input type="text" id="editTransComment" value="${escapeHtml(transaction.comment || '')}">
+                <div class="modal-buttons">
+                    <button id="saveTransEditBtn">💾 Сохранить</button>
+                    <button id="deleteTransBtn" style="background:#ef4444;">🗑️ Удалить</button>
+                    <button id="closeTransEditBtn" class="secondary">Отмена</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
 
-      document.getElementById('deleteTransBtn').onclick = async () => {
-        if (!confirm('Удалить транзакцию?')) return;
-        showSpinner();
-        const result = await apiCall(`/api/transactions/${transaction.id}`, { method: 'DELETE' });
-        hideSpinner();
-        if (result.ok) {
-          showToast('Транзакция удалена');
-          modal.remove();
-          if (refreshCallback) refreshCallback();
-        } else {
-          showToast(result.data.error || 'Ошибка удаления', true);
-        }
-      };
+        document.getElementById('deleteTransBtn').onclick = async () => {
+            if (!confirm('Удалить транзакцию?')) return;
+            showSpinner();
+            const result = await apiCall(`/api/transactions/${transaction.id}`, { method: 'DELETE' });
+            hideSpinner();
+            if (result.ok) {
+                showToast('Транзакция удалена');
+                modal.remove();
+                if (refreshCallback) refreshCallback();
+            } else {
+                showToast(result.data.error || 'Ошибка удаления', true);
+            }
+        };
 
-      document.getElementById('saveTransEditBtn').onclick = async () => {
-        const date = document.getElementById('editTransDate').value;
-        const type = document.getElementById('editTransType').value;
-        const category = document.getElementById('editTransCategory').value.trim();
-        const amount = normalizePrice(document.getElementById('editTransAmount').value);
-        const comment = document.getElementById('editTransComment').value.trim();
+        document.getElementById('saveTransEditBtn').onclick = async () => {
+            const date = document.getElementById('editTransDate').value;
+            const type = document.getElementById('editTransType').value;
+            const category = document.getElementById('editTransCategory').value.trim();
+            const amount = normalizePrice(document.getElementById('editTransAmount').value);
+            const comment = document.getElementById('editTransComment').value.trim();
 
-        if (!category || isNaN(amount) || amount <= 0) {
-          showToast('Заполните все поля корректно', true);
-          return;
-        }
+            if (!category || isNaN(amount) || amount <= 0) {
+                showToast('Заполните все поля корректно', true);
+                return;
+            }
 
-        showSpinner();
-        const result = await apiCall(`/api/transactions/${transaction.id}`, {
-          method: 'PUT',
-          body: JSON.stringify({ date, type, category, amount, comment })
-        });
-        hideSpinner();
-        if (result.ok) {
-          showToast('Транзакция обновлена');
-          modal.remove();
-          if (refreshCallback) refreshCallback();
-        } else {
-          showToast(result.data.error || 'Ошибка обновления', true);
-        }
-      };
+            showSpinner();
+            const result = await apiCall(`/api/transactions/${transaction.id}`, {
+                method: 'PUT',
+                body: JSON.stringify({ date, type, category, amount, comment })
+            });
+            hideSpinner();
+            if (result.ok) {
+                showToast('Транзакция обновлена');
+                modal.remove();
+                if (refreshCallback) refreshCallback();
+            } else {
+                showToast(result.data.error || 'Ошибка обновления', true);
+            }
+        };
 
-      document.getElementById('closeTransEditBtn').onclick = () => modal.remove();
+        document.getElementById('closeTransEditBtn').onclick = () => modal.remove();
     }
 
     // Фильтр
     document.getElementById('filterBtn').onclick = () => {
-      const s = document.getElementById('startDate').value;
-      const e = document.getElementById('endDate').value;
-      if (s && e) loadFinanceData();
+        const s = document.getElementById('startDate').value;
+        const e = document.getElementById('endDate').value;
+        if (s && e) loadFinanceData();
     };
 
-    // Добавление операции (как было)
+    // Добавление операции
     document.getElementById('addTransactionBtn').onclick = () => {
-      const modal = document.createElement('div');
-      modal.className = 'modal';
-      modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-      modal.innerHTML = `
-        <div class="modal-content">
-          <h3>➕ Новая операция</h3>
-          <label>Тип</label>
-          <select id="transType"><option>Доход</option><option>Расход</option></select>
-          <label>Категория</label>
-          <input id="transCategory" placeholder="Например, Заказ, Зарплата, Аренда">
-          <label>Сумма (BYN)</label>
-          <input type="text" id="transAmount" placeholder="0,00">
-          <label>Комментарий</label>
-          <input id="transComment" placeholder="Необязательно">
-          <div class="modal-buttons">
-            <button id="saveTransBtn">Сохранить</button>
-            <button id="closeTransBtn" class="secondary">Отмена</button>
-          </div>
-        </div>
-      `;
-      document.body.appendChild(modal);
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+        modal.innerHTML = `
+            <div class="modal-content">
+                <h3>➕ Новая операция</h3>
+                <label>Тип</label>
+                <select id="transType"><option>Доход</option><option>Расход</option></select>
+                <label>Категория</label>
+                <input id="transCategory" placeholder="Например, Заказ, Зарплата, Аренда">
+                <label>Сумма (BYN)</label>
+                <input type="text" id="transAmount" placeholder="0,00">
+                <label>Комментарий</label>
+                <input id="transComment" placeholder="Необязательно">
+                <div class="modal-buttons">
+                    <button id="saveTransBtn">Сохранить</button>
+                    <button id="closeTransBtn" class="secondary">Отмена</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
 
-      const amountInput = document.getElementById('transAmount');
-      amountInput.addEventListener('blur', () => formatPriceInput(amountInput));
+        const amountInput = document.getElementById('transAmount');
+        amountInput.addEventListener('blur', () => formatPriceInput(amountInput));
 
-      document.getElementById('saveTransBtn').onclick = async () => {
-        const type = document.getElementById('transType').value;
-        const cat = document.getElementById('transCategory').value.trim();
-        const amt = normalizePrice(document.getElementById('transAmount').value);
-        const comm = document.getElementById('transComment').value;
-        if (!cat || isNaN(amt) || amt <= 0) {
-          showToast('Заполните категорию и корректную сумму', true);
-          return;
-        }
-        showSpinner();
-        const result = await apiCall('/api/transactions', {
-          method: 'POST',
-          body: JSON.stringify({ type, category: cat, amount: amt, comment: comm })
-        });
-        hideSpinner();
-        if (result.ok) {
-          showToast('Операция добавлена');
-          modal.remove();
-          loadFinanceData();
-        } else {
-          showToast(result.data.error || 'Ошибка добавления', true);
-        }
-      };
-      document.getElementById('closeTransBtn').onclick = () => modal.remove();
+        document.getElementById('saveTransBtn').onclick = async () => {
+            const type = document.getElementById('transType').value;
+            const cat = document.getElementById('transCategory').value.trim();
+            const amt = normalizePrice(document.getElementById('transAmount').value);
+            const comm = document.getElementById('transComment').value;
+            if (!cat || isNaN(amt) || amt <= 0) {
+                showToast('Заполните категорию и корректную сумму', true);
+                return;
+            }
+            showSpinner();
+            const result = await apiCall('/api/transactions', {
+                method: 'POST',
+                body: JSON.stringify({ type, category: cat, amount: amt, comment: comm })
+            });
+            hideSpinner();
+            if (result.ok) {
+                showToast('Операция добавлена');
+                modal.remove();
+                loadFinanceData();
+            } else {
+                showToast(result.data.error || 'Ошибка добавления', true);
+            }
+        };
+        document.getElementById('closeTransBtn').onclick = () => modal.remove();
     };
 
+    // Первая загрузка
     loadFinanceData();
-  }
+}
 
   // ========== ВКЛАДКА "ПРОИЗВОДСТВО" (заглушка) ==========
   function renderProductionContent(containerElement) {
