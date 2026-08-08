@@ -2197,6 +2197,7 @@ function renderFinanceContent(containerElement) {
 
     // === ЗАГРУЗКА ДАННЫХ ===
     async function loadFinanceData() {
+          console.log('🔄 loadFinanceData вызвана');
         const startDateInput = document.getElementById('startDate').value;
         const endDateInput = document.getElementById('endDate').value;
         if (!startDateInput || !endDateInput) return;
@@ -2299,20 +2300,26 @@ function openEditTransactionModal(transaction, refreshCallback) {
     document.body.appendChild(modal);
 
     // === УДАЛЕНИЕ С КАСТОМНЫМ ПОДТВЕРЖДЕНИЕМ ===
-    document.getElementById('deleteTransBtn').onclick = () => {
-        showConfirmModal('Удалить транзакцию?', async () => {
-            showSpinner();
-            const result = await apiCall(`/api/transactions/${transaction.id}`, { method: 'DELETE' });
-            hideSpinner();
-            if (result.ok) {
-                showToast('Транзакция удалена');
-                modal.remove();
-                if (refreshCallback) refreshCallback();
+document.getElementById('deleteTransBtn').onclick = () => {
+    showConfirmModal('Удалить транзакцию?', async () => {
+        showSpinner();
+        const result = await apiCall(`/api/transactions/${transaction.id}`, { method: 'DELETE' });
+        hideSpinner();
+        console.log('📤 Ответ сервера при удалении:', result);
+        if (result.ok) {
+            showToast('Транзакция удалена');
+            modal.remove();
+            console.log('🔄 Вызываем refreshCallback');
+            if (refreshCallback) {
+                refreshCallback();
             } else {
-                showToast(result.data.error || 'Ошибка удаления', true);
+                console.warn('refreshCallback не определён');
             }
-        });
-    };
+        } else {
+            showToast(result.data.error || 'Ошибка удаления', true);
+        }
+    });
+};
 
     // === СОХРАНЕНИЕ ===
     document.getElementById('saveTransEditBtn').onclick = async () => {
