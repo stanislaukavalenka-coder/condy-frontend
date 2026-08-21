@@ -1313,8 +1313,8 @@ if (priceInput) {
         <label>🚚 Доставка</label>
         <input type="text" id="editDelivery" value="${escapeHtml(order.delivery || '')}">
         <label>📅 Дата выполнения</label>
-        <input type="date" id="editExecutionDate" style="padding: 6px 10px; height: 36px; width: 100%; box-sizing: border-box;" value="${order.executionDate ? order.executionDate.split('T')[0] : ''}">
-        <div class="modal-buttons">
+<input type="date" id="editExecutionDate" value="${order.executionDate ? order.executionDate.split('T')[0] : ''}">
+          <div class="modal-buttons">
           <button id="saveOrderEditBtn">💾 Сохранить</button>
           <button id="deleteOrderBtn" style="background:#ef4444;">🗑️ Удалить заказ</button>
           <button id="closeEditModalBtn" class="secondary">Отмена</button>
@@ -1843,8 +1843,8 @@ if (nameInput && dropdown) {
         <label>🚚 Доставка</label>
         <input type="text" id="orderDelivery" placeholder="Курьером / Самовывоз">
         <label>📅 Дата выполнения *</label>
-        <input type="date" id="orderDate" style="padding: 6px 10px; height: 36px; width: 100%; box-sizing: border-box;">
-        <label>📌 Статус</label>
+<input type="date" id="orderDate">
+<label>📌 Статус</label>
         <div class="status-group" id="newOrderStatusGroup">
           ${statuses.map(s => `<button class="status-btn ${s === selectedStatus ? 'active' : ''}" data-status="${s}">${s}</button>`).join('')}
         </div>
