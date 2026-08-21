@@ -872,9 +872,9 @@ function renderOrdersTab(container) {
     margin-bottom: 0px;
 ">📦 Заказы</h1>
     <div style="display:flex; justify-content:space-between;">
-      <button id="prevMonth" class="secondary" style="width:auto;">◀</button>
+      <button id="prevMonth" class="secondary" style="width:auto;">◄</button>
       <span id="monthYear" style="font-weight:bold;"></span>
-      <button id="nextMonth" class="secondary" style="width:auto;">▶</button>
+      <button id="nextMonth" class="secondary" style="width:auto;">►</button>
     </div>
     <div id="calendarGrid" class="calendar-grid"></div>
     <div style="display:flex; justify-content:center; margin:12px 0;">
@@ -1082,7 +1082,13 @@ async function showOrderDetailsModal(order, client) {
 
   let html = `
     <table class="products-table">
-      <thead><tr><th>Наименование</th><th style="width:80px">Кол-во (шт)</th><th style="width:100px">Цена (BYN)</th><th style="width:80px">Сумма</th><th style="width:30px"></th></tr></thead>
+      <thead><tr>
+        <th style="width:60%;">Наименование</th>
+        <th style="width:15%;">Кол-во (шт)</th>
+        <th style="width:15%;">Цена (BYN)</th>
+        <th style="width:10%;">Сумма</th>
+        <th style="width:auto; min-width:30px;"></th>
+      </tr></thead>
       <tbody>
   `;
 
@@ -1114,77 +1120,93 @@ async function showOrderDetailsModal(order, client) {
     const dropdown = document.getElementById(`dropdown_${idx}`);
 
     // === ВЫПАДАЮЩИЙ СПИСОК ТОВАРОВ ===
-    if (nameInput && dropdown) {
-      nameInput.addEventListener('input', function() {
-        const query = this.value.trim().toLowerCase();
+if (nameInput && dropdown) {
+    // Функция обновления списка
+    function updateDropdown(query) {
         const activeProducts = (cachedProducts || []).filter(prod => prod.isActive);
         let filtered = activeProducts;
-        if (query) {
-          filtered = activeProducts.filter(prod => prod.name.toLowerCase().includes(query));
+        if (query && query.trim() !== '') {
+            const lowerQuery = query.trim().toLowerCase();
+            filtered = activeProducts.filter(prod => prod.name.toLowerCase().includes(lowerQuery));
         }
         if (filtered.length === 0) {
-          dropdown.innerHTML = '<div class="custom-dropdown-item" style="color:#999;cursor:default;">Нет совпадений</div>';
-          dropdown.classList.add('show');
-          return;
+            dropdown.innerHTML = '<div class="custom-dropdown-item" style="color:#999;cursor:default;">Нет совпадений</div>';
+            dropdown.classList.add('show');
+            return;
         }
         let listHtml = '';
         filtered.forEach(prod => {
-          listHtml += `
-            <div class="custom-dropdown-item" data-id="${prod.id}" data-name="${escapeHtml(prod.name)}" data-price="${prod.price}">
-              <span class="item-name">${escapeHtml(prod.name)}</span>
-              <span class="item-price">${prod.price.toFixed(2)} BYN</span>
-            </div>
-          `;
+            listHtml += `
+                <div class="custom-dropdown-item" data-id="${prod.id}" data-name="${escapeHtml(prod.name)}" data-price="${prod.price}">
+                    <span class="item-name">${escapeHtml(prod.name)}</span>
+                    <span class="item-price">${prod.price.toFixed(2)} BYN</span>
+                </div>
+            `;
         });
         dropdown.innerHTML = listHtml;
         dropdown.classList.add('show');
 
         dropdown.querySelectorAll('.custom-dropdown-item').forEach(item => {
-          item.addEventListener('mousedown', function(e) {
-            e.preventDefault();
-            const id = parseInt(this.dataset.id);
-            const name = this.dataset.name;
-            const price = parseFloat(this.dataset.price);
-            const product = cachedProducts.find(p => p.id === id);
-            if (product) {
-              orderProducts[idx].productId = product.id;
-              orderProducts[idx].name = product.name;
-              orderProducts[idx].price = product.price;
-              orderProducts[idx].customName = null;
-              nameInput.value = product.name;
-              const priceInput = nameInput.closest('tr').querySelector('.edit-product-price');
-              if (priceInput) priceInput.value = product.price.toFixed(2).replace('.', ',');
-              calculateTotalAndRowSums();
-            }
-            dropdown.classList.remove('show');
-          });
+            item.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                const id = parseInt(this.dataset.id);
+                const name = this.dataset.name;
+                const price = parseFloat(this.dataset.price);
+                const product = cachedProducts.find(p => p.id === id);
+                if (product) {
+                    orderProducts[idx].productId = product.id;
+                    orderProducts[idx].name = product.name;
+                    orderProducts[idx].price = product.price;
+                    orderProducts[idx].customName = null;
+                    nameInput.value = product.name;
+                    const priceInput = nameInput.closest('tr').querySelector('.edit-product-price');
+                    if (priceInput) priceInput.value = product.price.toFixed(2).replace('.', ',');
+                    calculateTotalAndRowSums();
+                }
+                dropdown.classList.remove('show');
+            });
         });
-      });
+    }
 
-      nameInput.addEventListener('blur', function() {
+    // При вводе текста – фильтруем список
+    nameInput.addEventListener('input', function() {
+        const query = this.value.trim();
+        updateDropdown(query);
+    });
+
+    // При фокусе – открываем список (все товары или отфильтрованные по текущему тексту)
+    nameInput.addEventListener('focus', function() {
+        if (dropdown.classList.contains('show')) return; // уже открыт
+        const query = this.value.trim();
+        updateDropdown(query);
+    });
+
+    // При потере фокуса – скрываем список с задержкой
+    nameInput.addEventListener('blur', function() {
         setTimeout(() => dropdown.classList.remove('show'), 200);
-      });
+    });
 
-      nameInput.addEventListener('change', function() {
+    // При изменении (если пользователь ввёл название вручную)
+    nameInput.addEventListener('change', function() {
         const newName = this.value.trim();
         if (!newName) return;
         const found = cachedProducts.find(p => p.name.toLowerCase() === newName.toLowerCase());
         if (found) {
-          orderProducts[idx].productId = found.id;
-          orderProducts[idx].name = found.name;
-          orderProducts[idx].price = found.price;
-          orderProducts[idx].customName = null;
-          const priceInput = this.closest('tr').querySelector('.edit-product-price');
-          if (priceInput) priceInput.value = found.price.toFixed(2).replace('.', ',');
-          this.value = found.name;
+            orderProducts[idx].productId = found.id;
+            orderProducts[idx].name = found.name;
+            orderProducts[idx].price = found.price;
+            orderProducts[idx].customName = null;
+            const priceInput = this.closest('tr').querySelector('.edit-product-price');
+            if (priceInput) priceInput.value = found.price.toFixed(2).replace('.', ',');
+            this.value = found.name;
         } else {
-          orderProducts[idx].productId = null;
-          orderProducts[idx].name = null;
-          orderProducts[idx].customName = newName;
+            orderProducts[idx].productId = null;
+            orderProducts[idx].name = null;
+            orderProducts[idx].customName = newName;
         }
         calculateTotalAndRowSums();
-      });
-    }
+    });
+}
 
     // === КОЛИЧЕСТВО ===
     const qtyInput = document.querySelector(`tr[data-idx="${idx}"] .edit-product-quantity`);
@@ -1291,7 +1313,7 @@ if (priceInput) {
         <label>🚚 Доставка</label>
         <input type="text" id="editDelivery" value="${escapeHtml(order.delivery || '')}">
         <label>📅 Дата выполнения</label>
-        <input type="date" id="editExecutionDate" value="${order.executionDate ? order.executionDate.split('T')[0] : ''}">
+        <input type="date" id="editExecutionDate" style="padding: 6px 10px; height: 36px; width: 100%; box-sizing: border-box;" value="${order.executionDate ? order.executionDate.split('T')[0] : ''}">
         <div class="modal-buttons">
           <button id="saveOrderEditBtn">💾 Сохранить</button>
           <button id="deleteOrderBtn" style="background:#ef4444;">🗑️ Удалить заказ</button>
@@ -1616,7 +1638,13 @@ async function showOrderForm() {
 
   let html = `
     <table class="products-table">
-      <thead><tr><th>Наименование</th><th style="width:80px">Кол-во (шт)</th><th style="width:100px">Цена (BYN)</th><th style="width:80px">Сумма</th><th style="width:30px"></th></tr></thead>
+      <thead><tr>
+        <th style="width:60%;">Наименование</th>
+        <th style="width:15%;">Кол-во (шт)</th>
+        <th style="width:15%;">Цена (BYN)</th>
+        <th style="width:10%;">Сумма</th>
+        <th style="width:auto; min-width:30px;"></th>
+      </tr></thead>
       <tbody>
   `;
 
@@ -1648,77 +1676,93 @@ async function showOrderForm() {
     const dropdown = document.getElementById(`dropdown_${idx}`);
 
     // === ВЫПАДАЮЩИЙ СПИСОК ТОВАРОВ ===
-    if (nameInput && dropdown) {
-      nameInput.addEventListener('input', function() {
-        const query = this.value.trim().toLowerCase();
+if (nameInput && dropdown) {
+    // Функция обновления списка
+    function updateDropdown(query) {
         const activeProducts = (cachedProducts || []).filter(prod => prod.isActive);
         let filtered = activeProducts;
-        if (query) {
-          filtered = activeProducts.filter(prod => prod.name.toLowerCase().includes(query));
+        if (query && query.trim() !== '') {
+            const lowerQuery = query.trim().toLowerCase();
+            filtered = activeProducts.filter(prod => prod.name.toLowerCase().includes(lowerQuery));
         }
         if (filtered.length === 0) {
-          dropdown.innerHTML = '<div class="custom-dropdown-item" style="color:#999;cursor:default;">Нет совпадений</div>';
-          dropdown.classList.add('show');
-          return;
+            dropdown.innerHTML = '<div class="custom-dropdown-item" style="color:#999;cursor:default;">Нет совпадений</div>';
+            dropdown.classList.add('show');
+            return;
         }
         let listHtml = '';
         filtered.forEach(prod => {
-          listHtml += `
-            <div class="custom-dropdown-item" data-id="${prod.id}" data-name="${escapeHtml(prod.name)}" data-price="${prod.price}">
-              <span class="item-name">${escapeHtml(prod.name)}</span>
-              <span class="item-price">${prod.price.toFixed(2)} BYN</span>
-            </div>
-          `;
+            listHtml += `
+                <div class="custom-dropdown-item" data-id="${prod.id}" data-name="${escapeHtml(prod.name)}" data-price="${prod.price}">
+                    <span class="item-name">${escapeHtml(prod.name)}</span>
+                    <span class="item-price">${prod.price.toFixed(2)} BYN</span>
+                </div>
+            `;
         });
         dropdown.innerHTML = listHtml;
         dropdown.classList.add('show');
 
         dropdown.querySelectorAll('.custom-dropdown-item').forEach(item => {
-          item.addEventListener('mousedown', function(e) {
-            e.preventDefault();
-            const id = parseInt(this.dataset.id);
-            const name = this.dataset.name;
-            const price = parseFloat(this.dataset.price);
-            const product = cachedProducts.find(p => p.id === id);
-            if (product) {
-              orderProducts[idx].productId = product.id;
-              orderProducts[idx].name = product.name;
-              orderProducts[idx].price = product.price;
-              orderProducts[idx].customName = null;
-              nameInput.value = product.name;
-              const priceInput = nameInput.closest('tr').querySelector('.edit-product-price');
-              if (priceInput) priceInput.value = product.price.toFixed(2).replace('.', ',');
-              calculateTotalAndRowSums();
-            }
-            dropdown.classList.remove('show');
-          });
+            item.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                const id = parseInt(this.dataset.id);
+                const name = this.dataset.name;
+                const price = parseFloat(this.dataset.price);
+                const product = cachedProducts.find(p => p.id === id);
+                if (product) {
+                    orderProducts[idx].productId = product.id;
+                    orderProducts[idx].name = product.name;
+                    orderProducts[idx].price = product.price;
+                    orderProducts[idx].customName = null;
+                    nameInput.value = product.name;
+                    const priceInput = nameInput.closest('tr').querySelector('.edit-product-price');
+                    if (priceInput) priceInput.value = product.price.toFixed(2).replace('.', ',');
+                    calculateTotalAndRowSums();
+                }
+                dropdown.classList.remove('show');
+            });
         });
-      });
+    }
 
-      nameInput.addEventListener('blur', function() {
+    // При вводе текста – фильтруем список
+    nameInput.addEventListener('input', function() {
+        const query = this.value.trim();
+        updateDropdown(query);
+    });
+
+    // При фокусе – открываем список (все товары или отфильтрованные по текущему тексту)
+    nameInput.addEventListener('focus', function() {
+        if (dropdown.classList.contains('show')) return; // уже открыт
+        const query = this.value.trim();
+        updateDropdown(query);
+    });
+
+    // При потере фокуса – скрываем список с задержкой
+    nameInput.addEventListener('blur', function() {
         setTimeout(() => dropdown.classList.remove('show'), 200);
-      });
+    });
 
-      nameInput.addEventListener('change', function() {
+    // При изменении (если пользователь ввёл название вручную)
+    nameInput.addEventListener('change', function() {
         const newName = this.value.trim();
         if (!newName) return;
         const found = cachedProducts.find(p => p.name.toLowerCase() === newName.toLowerCase());
         if (found) {
-          orderProducts[idx].productId = found.id;
-          orderProducts[idx].name = found.name;
-          orderProducts[idx].price = found.price;
-          orderProducts[idx].customName = null;
-          const priceInput = this.closest('tr').querySelector('.edit-product-price');
-          if (priceInput) priceInput.value = found.price.toFixed(2).replace('.', ',');
-          this.value = found.name;
+            orderProducts[idx].productId = found.id;
+            orderProducts[idx].name = found.name;
+            orderProducts[idx].price = found.price;
+            orderProducts[idx].customName = null;
+            const priceInput = this.closest('tr').querySelector('.edit-product-price');
+            if (priceInput) priceInput.value = found.price.toFixed(2).replace('.', ',');
+            this.value = found.name;
         } else {
-          orderProducts[idx].productId = null;
-          orderProducts[idx].name = null;
-          orderProducts[idx].customName = newName;
+            orderProducts[idx].productId = null;
+            orderProducts[idx].name = null;
+            orderProducts[idx].customName = newName;
         }
         calculateTotalAndRowSums();
-      });
-    }
+    });
+}
 
     // === КОЛИЧЕСТВО ===
     const qtyInput = document.querySelector(`tr[data-idx="${idx}"] .edit-product-quantity`);
@@ -1799,7 +1843,7 @@ async function showOrderForm() {
         <label>🚚 Доставка</label>
         <input type="text" id="orderDelivery" placeholder="Курьером / Самовывоз">
         <label>📅 Дата выполнения *</label>
-        <input type="date" id="orderDate">
+        <input type="date" id="orderDate" style="padding: 6px 10px; height: 36px; width: 100%; box-sizing: border-box;">
         <label>📌 Статус</label>
         <div class="status-group" id="newOrderStatusGroup">
           ${statuses.map(s => `<button class="status-btn ${s === selectedStatus ? 'active' : ''}" data-status="${s}">${s}</button>`).join('')}
@@ -2197,74 +2241,88 @@ function renderFinanceContent(containerElement) {
 
     // === ЗАГРУЗКА ДАННЫХ ===
     async function loadFinanceData() {
-          console.log('🔄 loadFinanceData вызвана');
-        const startDateInput = document.getElementById('startDate').value;
-        const endDateInput = document.getElementById('endDate').value;
-        if (!startDateInput || !endDateInput) return;
+    console.log('🔄 loadFinanceData вызвана');
+    const startDateInput = document.getElementById('startDate').value;
+    const endDateInput = document.getElementById('endDate').value;
+    if (!startDateInput || !endDateInput) return;
 
-        showSpinner();
-        const result = await apiCall('/api/finance');
-        hideSpinner();
+    showSpinner();
+    const result = await apiCall('/api/finance');
+    hideSpinner();
 
-        if (!result.ok) {
-            document.getElementById('financeSummary').innerHTML = '<div class="alert">Ошибка загрузки данных</div>';
-            return;
-        }
-
-        let transactions = result.data.transactions || [];
-        const start = new Date(startDateInput);
-        const end = new Date(endDateInput);
-        end.setHours(23, 59, 59, 999);
-
-        transactions = transactions.filter(t => {
-            const dateObj = parseCustomDate(t.date);
-            return dateObj >= start && dateObj <= end;
-        });
-
-        // Приводим id к числу для надёжности
-        transactions = transactions.map(t => ({ ...t, id: Number(t.id) }));
-
-        const totalIncome = transactions.filter(t => t.type === 'Доход').reduce((s, t) => s + t.amount, 0);
-        const totalExpense = transactions.filter(t => t.type === 'Расход').reduce((s, t) => s + t.amount, 0);
-        const profit = totalIncome - totalExpense;
-
-        document.getElementById('financeSummary').innerHTML = `
-            <div class="card">
-              📊 <strong>Доходы:</strong> ${totalIncome.toFixed(2)} BYN<br>
-              📉 <strong>Расходы:</strong> ${totalExpense.toFixed(2)} BYN<br>
-              💰 <strong>Прибыль:</strong> ${profit.toFixed(2)} BYN
-            </div>
-        `;
-
-        const listDiv = document.getElementById('financeList');
-        if (transactions.length === 0) {
-            listDiv.innerHTML = '<div class="card">📭 Нет операций за выбранный период</div>';
-            currentTransactions = [];
-            return;
-        }
-
-        transactions.sort((a, b) => parseCustomDate(b.date) - parseCustomDate(a.date));
-
-        let html = '<div class="card"><table style="width:100%; border-collapse: collapse;">';
-        html += '<thead><tr><th>Дата</th><th>Тип</th><th>Категория</th><th>Сумма</th><th>Комментарий</th></tr></thead><tbody>';
-        for (const t of transactions) {
-            const displayDate = formatDate(t.date);
-            html += `<tr class="transaction-row" data-id="${t.id}" style="cursor:pointer;">
-                <td>${escapeHtml(displayDate)}</td>
-                <td>${escapeHtml(t.type)}</td>
-                <td>${escapeHtml(t.category)}</td>
-                <td class="amount">${t.amount.toFixed(2)} BYN</td>
-                <td>${escapeHtml(t.comment || '')}</td>
-            </tr>`;
-        }
-        html += '</tbody></table></div>';
-        listDiv.innerHTML = html;
-
-        // === КЛЮЧЕВОЕ: обновляем currentTransactions ===
-        currentTransactions = transactions;
-        console.log('📦 currentTransactions обновлён. Количество:', currentTransactions.length);
+    if (!result.ok) {
+        document.getElementById('financeSummary').innerHTML = '<div class="alert">Ошибка загрузки данных</div>';
+        return;
     }
 
+    let transactions = result.data.transactions || [];
+    const start = new Date(startDateInput);
+    const end = new Date(endDateInput);
+    end.setHours(23, 59, 59, 999);
+
+    transactions = transactions.filter(t => {
+        const dateObj = parseCustomDate(t.date);
+        return dateObj >= start && dateObj <= end;
+    });
+
+    // Приводим id к числу
+    transactions = transactions.map(t => ({ ...t, id: Number(t.id), orderId: t.orderId ? Number(t.orderId) : null }));
+
+    const totalIncome = transactions.filter(t => t.type === 'Доход').reduce((s, t) => s + t.amount, 0);
+    const totalExpense = transactions.filter(t => t.type === 'Расход').reduce((s, t) => s + t.amount, 0);
+    const profit = totalIncome - totalExpense;
+
+    // === НОВЫЕ РАСЧЁТЫ ПО ЗАКАЗАМ ===
+    // Загружаем заказы (если ещё нет)
+    if (!cachedOrders.length) await fetchAllOrders(true);
+
+    // Доходы только от заказов (orderId не null)
+    const orderTransactions = transactions.filter(t => t.type === 'Доход' && t.orderId);
+    const uniqueOrderIds = [...new Set(orderTransactions.map(t => t.orderId))];
+    const orderClients = uniqueOrderIds
+        .map(id => cachedOrders.find(o => o.id === id))
+        .filter(o => o && o.clientId);
+    const uniqueClients = new Set(orderClients.map(o => o.clientId)).size;
+    const totalOrderRevenue = orderTransactions.reduce((s, t) => s + t.amount, 0);
+    const averageCheck = uniqueOrderIds.length ? (totalOrderRevenue / uniqueOrderIds.length) : 0;
+
+    document.getElementById('financeSummary').innerHTML = `
+        <div class="card">
+            📊 <strong>Доходы:</strong> ${totalIncome.toFixed(2)} BYN<br>
+            📉 <strong>Расходы:</strong> ${totalExpense.toFixed(2)} BYN<br>
+            💰 <strong>Прибыль:</strong> ${profit.toFixed(2)} BYN<br>
+            👥 <strong>Клиентов:</strong> ${uniqueClients}<br>
+            🧾 <strong>Средний чек:</strong> ${averageCheck.toFixed(2)} BYN
+        </div>
+    `;
+
+    const listDiv = document.getElementById('financeList');
+    if (transactions.length === 0) {
+        listDiv.innerHTML = '<div class="card">📭 Нет операций за выбранный период</div>';
+        currentTransactions = [];
+        return;
+    }
+
+    transactions.sort((a, b) => parseCustomDate(b.date) - parseCustomDate(a.date));
+
+    let html = '<div class="card"><table style="width:100%; border-collapse: collapse;">';
+    html += '<thead><tr><th>Дата</th><th>Тип</th><th>Категория</th><th>Сумма</th><th>Комментарий</th></tr></thead><tbody>';
+    for (const t of transactions) {
+        const displayDate = formatDate(t.date);
+        html += `<tr class="transaction-row" data-id="${t.id}" style="cursor:pointer;">
+            <td>${escapeHtml(displayDate)}</td>
+            <td>${escapeHtml(t.type)}</td>
+            <td>${escapeHtml(t.category)}</td>
+            <td class="amount">${t.amount.toFixed(2)} BYN</td>
+            <td>${escapeHtml(t.comment || '')}</td>
+        </tr>`;
+    }
+    html += '</tbody></table></div>';
+    listDiv.innerHTML = html;
+
+    currentTransactions = transactions;
+    console.log('📦 currentTransactions обновлён. Количество:', currentTransactions.length);
+}
     // === МОДАЛКА РЕДАКТИРОВАНИЯ ===
 function openEditTransactionModal(transaction, refreshCallback) {
     const modal = document.createElement('div');
