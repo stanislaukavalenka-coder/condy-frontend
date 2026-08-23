@@ -527,6 +527,30 @@ tr:hover {
   border-bottom: none;
 }
 
+/* ========== ДВУХКОЛОНОЧНЫЙ МАКЕТ ДЛЯ ПК ========== */
+@media (min-width: 768px) {
+  #ordersLayout {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+  }
+  #ordersLayout .calendar-col {
+    flex: 0 0 280px;
+    min-width: 0;
+  }
+  #ordersLayout .orders-col {
+    flex: 1;
+    min-width: 0;
+  }
+  .bottom-nav button {
+    font-size: 0.85rem;
+    padding: 6px 12px;
+  }
+  .nav-item span:first-child {
+    font-size: 18px;
+  }
+}
+
 </style>
 </head>
 
@@ -847,17 +871,137 @@ function showConfirmModal(message, onConfirm) {
     // Закрытие по клику на фон
     overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
 }
+
+function showAddRecipeModal(onSuccess) {
+  // Создаём datalist, если нет
+  if (!document.getElementById('ingredientDatalist')) {
+    const dl = document.createElement('datalist');
+    dl.id = 'ingredientDatalist';
+    document.body.appendChild(dl);
+  }
+
+  // Загружаем ингредиенты для автодополнения
+  async function updateDatalist() {
+    const result = await apiCall('/api/stock');
+    if (result.ok && Array.isArray(result.data)) {
+      const dl = document.getElementById('ingredientDatalist');
+      dl.innerHTML = '';
+      result.data.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m.name;
+        dl.appendChild(opt);
+      });
+    }
+  }
+  updateDatalist();
+
+  const modal = document.createElement('div');
+  modal.className = 'modal';
+  modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+  modal.innerHTML = `
+    <div class="modal-content" style="max-width:600px;">
+      <h3>➕ Новый рецепт</h3>
+      <label>Название рецепта</label>
+      <input id="newRecipeName" placeholder="Например, Наполеон">
+
+      <label>Выход (г)</label>
+      <input type="number" id="newRecipeYield" placeholder="1000">
+
+      <label>Описание (пошагово, необязательно)</label>
+      <textarea id="newRecipeDescription" rows="3" placeholder="Как приготовить..."></textarea>
+
+      <h4>Ингредиенты</h4>
+      <div id="recipeIngredientsContainer"></div>
+      <button id="addIngredientRowBtn" class="add-row" style="margin-top:4px;">➕ Добавить ингредиент</button>
+
+      <div style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end;">
+        <button id="saveRecipeBtn" style="width:auto; padding:8px 24px;">Сохранить</button>
+        <button id="closeRecipeBtn" class="secondary" style="width:auto; padding:8px 24px;">Отмена</button>
+      </div>
+      <div id="recipeResult"></div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  const container = document.getElementById('recipeIngredientsContainer');
+  function addIngredientRow() {
+    const div = document.createElement('div');
+    div.className = 'ingredient-row';
+    div.style.display = 'flex';
+    div.style.gap = '8px';
+    div.style.marginBottom = '6px';
+    div.innerHTML = `
+      <input type="text" class="ingredient-name" list="ingredientDatalist" placeholder="Название" style="flex:2;">
+      <input type="number" class="ingredient-amount" placeholder="Кол-во (г)" style="flex:1;">
+      <button class="remove-ingredient" style="width:auto; margin:0; background:#ef4444; padding:2px 10px;">✖</button>
+    `;
+    container.appendChild(div);
+    div.querySelector('.remove-ingredient').onclick = () => div.remove();
+  }
+
+  // Начальные строки
+  for (let i = 0; i < 3; i++) addIngredientRow();
+  document.getElementById('addIngredientRowBtn').onclick = addIngredientRow;
+
+  document.getElementById('saveRecipeBtn').onclick = async () => {
+    const name = document.getElementById('newRecipeName').value.trim();
+    const yieldG = parseFloat(document.getElementById('newRecipeYield').value);
+    const description = document.getElementById('newRecipeDescription').value.trim();
+
+    if (!name || isNaN(yieldG) || yieldG <= 0) {
+      document.getElementById('recipeResult').innerHTML = '<div class="alert" style="color:red;">Введите название и выход</div>';
+      return;
+    }
+
+    const ingredients = [];
+    document.querySelectorAll('#recipeIngredientsContainer .ingredient-row').forEach(row => {
+      const ingName = row.querySelector('.ingredient-name').value.trim();
+      const amt = parseFloat(row.querySelector('.ingredient-amount').value);
+      if (ingName && !isNaN(amt) && amt > 0) {
+        ingredients.push({ name: ingName, amountG: amt });
+      }
+    });
+
+    if (ingredients.length === 0) {
+      document.getElementById('recipeResult').innerHTML = '<div class="alert" style="color:red;">Добавьте хотя бы один ингредиент</div>';
+      return;
+    }
+
+    showSpinner();
+    const result = await apiCall('/api/recipes', {
+      method: 'POST',
+      body: JSON.stringify({
+        name,
+        yield: yieldG,
+        ingredients,
+        cost: description   // описание сохранится в поле cost
+      })
+    });
+    hideSpinner();
+
+    if (result.ok) {
+      showToast('Рецепт добавлен');
+      modal.remove();
+      if (onSuccess) onSuccess();
+    } else {
+      document.getElementById('recipeResult').innerHTML = `<div class="alert" style="color:red;">${result.data.error || 'Ошибка добавления'}</div>`;
+    }
+  };
+
+  document.getElementById('closeRecipeBtn').onclick = () => modal.remove();
+}
 // =========================== 3. ОСНОВНОЕ ПРИЛОЖЕНИЕ ===========================
 function renderMainApp() {
   const appDiv = document.getElementById('app');
   appDiv.innerHTML = `
     <div style="max-width:700px; margin:0 auto;"><div id="mainContent" class="container"></div></div>
     <div class="bottom-nav">
-      <button class="nav-item" data-tab="orders"><span>📦</span><span>Заказы</span></button>
-      <button class="nav-item" data-tab="calculator"><span>🧮</span><span>Калькулятор</span></button>
-      <button class="nav-item" data-tab="stock"><span>📊</span><span>Склад</span></button>
-      <button class="nav-item" data-tab="analytics"><span>💰</span><span>Аналитика</span></button>
-      <button class="nav-item" data-tab="more"><span>☰</span><span>Ещё</span></button>
+  <button class="nav-item" data-tab="orders"><span>📦</span><span>Заказы</span></button>
+  <button class="nav-item" data-tab="recipes"><span>📝</span><span>Рецепты</span></button>   <!-- было calculator -->
+  <button class="nav-item" data-tab="stock"><span>📊</span><span>Склад</span></button>
+  <button class="nav-item" data-tab="analytics"><span>💰</span><span>Аналитика</span></button>
+  <button class="nav-item" data-tab="more"><span>☰</span><span>Ещё</span></button>
     </div>
   `;
   showTab('orders');
@@ -871,7 +1015,7 @@ function showTab(tabId) {
   document.querySelectorAll('.nav-item').forEach(btn => btn.classList.toggle('active', btn.getAttribute('data-tab') === tabId));
   const container = document.getElementById('mainContent');
   if (tabId === 'orders') renderOrdersTab(container);
-  else if (tabId === 'calculator') renderCalculatorTab(container);
+  else if (tabId === 'recipes') renderRecipesTab(container);
   else if (tabId === 'stock') renderStockTab(container);
   else if (tabId === 'analytics') renderAnalyticsTab(container);
   else if (tabId === 'more') renderMoreTab(container);
@@ -881,22 +1025,25 @@ function showTab(tabId) {
 // =========================== 4. ЗАКАЗЫ (исправленные, безопасные) ===========================
 function renderOrdersTab(container) {
   container.innerHTML = `
-    <h1 style="
-    margin-top: 0px;
-    margin-bottom: 0px;
-">📦 Заказы</h1>
-    <div style="display:flex; justify-content:space-between;">
-      <button id="prevMonth" class="secondary" style="width:auto;">◄</button>
-      <span id="monthYear" style="font-weight:bold;"></span>
-      <button id="nextMonth" class="secondary" style="width:auto;">►</button>
+    <h1 style="margin-top:0; margin-bottom:0;">📦 Заказы</h1>
+    <div id="ordersLayout">
+      <div class="calendar-col">
+        <div style="display:flex; justify-content:space-between;">
+          <button id="prevMonth" class="secondary" style="width:auto;">◄</button>
+          <span id="monthYear" style="font-weight:bold;"></span>
+          <button id="nextMonth" class="secondary" style="width:auto;">►</button>
+        </div>
+        <div id="calendarGrid" class="calendar-grid"></div>
+        <div style="display:flex; justify-content:center; margin:12px 0;">
+          <button id="addOrderBtn" style="width:auto;background:#fb923c;font-weight:600;padding:8px 20px;border-radius:40px;border:none;color:white;cursor:pointer;box-shadow:0 4px 12px rgba(251,146,60,0.3);transition:all 0.2s;margin-top:0;font-size:0.9rem;">
+            ➕ НОВЫЙ ЗАКАЗ
+          </button>
+        </div>
+      </div>
+      <div class="orders-col">
+        <div id="ordersList"></div>
+      </div>
     </div>
-    <div id="calendarGrid" class="calendar-grid"></div>
-    <div style="display:flex; justify-content:center; margin:12px 0;">
-    <button id="addOrderBtn" style="width:auto;background:#fb923c;font-weight:600;padding:6px 24px;border-radius: 200px;border:none;color:white;cursor:pointer;box-shadow:0 4px 6px rgba(251,146,60,0.3);transition:all 0.2s;margin-top: 0px;">
-        ➕ НОВЫЙ ЗАКАЗ
-      </button>
-    </div>
-    <div id="ordersList"></div>
   `;
 
   document.getElementById('prevMonth').onclick = () => {
@@ -2026,27 +2173,54 @@ if (nameInput && dropdown) {
 
   document.getElementById('closeModalBtn').onclick = () => document.getElementById('orderModal').remove();
 }
-// =========================== 6. КАЛЬКУЛЯТОР ===========================
-function renderCalculatorTab(container) {
-  container.innerHTML = `<h1>🧮 Калькулятор рецептов</h1>
-    <label>📖 Рецепт</label><select id="recipeSelect"></select>
-    <label>⚖️ Желаемый вес (г)</label><input type="number" id="desiredWeight" value="500">
-    <button id="calcBtn">Рассчитать</button>
-    <div id="calcResult"></div>
-    <button id="writeOffBtn" style="display:none;">Списать</button>`;
+// =========================== 6. РЕЦЕПТЫ ===========================
+let cachedRecipes = [];
 
-  // Загрузка списка рецептов через API
+async function fetchRecipes(force = false) {
+  if (!force && sessionStorage.getItem('cachedRecipes')) {
+    cachedRecipes = JSON.parse(sessionStorage.getItem('cachedRecipes'));
+    return cachedRecipes;
+  }
+  const result = await apiCall('/api/recipes');
+  if (result.ok && Array.isArray(result.data)) {
+    cachedRecipes = result.data;
+    sessionStorage.setItem('cachedRecipes', JSON.stringify(cachedRecipes));
+  } else cachedRecipes = [];
+  return cachedRecipes;
+}
+
+function renderRecipesTab(container) {
+  container.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+      <h1 style="margin:0;">📝 Рецепты</h1>
+      <button id="addRecipeBtn" class="secondary" style="width:auto; padding:6px 16px;">➕ Добавить рецепт</button>
+    </div>
+
+    <!-- Блок калькулятора -->
+    <div class="card" style="margin-top:12px;">
+      <h3 style="margin-top:0;">🧮 Калькулятор рецептов</h3>
+      <label>📖 Рецепт</label>
+      <select id="recipeSelect"></select>
+      <label>⚖️ Желаемый вес (г)</label>
+      <input type="number" id="desiredWeight" value="500">
+      <button id="calcBtn" style="margin-top:6px;">Рассчитать</button>
+      <div id="calcResult"></div>
+      <button id="writeOffBtn" style="display:none; margin-top:6px;">Списать</button>
+    </div>
+
+    <!-- Список рецептов -->
+    <div id="recipesList" style="margin-top:12px;"></div>
+  `;
+
+  // === ЗАГРУЗКА РЕЦЕПТОВ ДЛЯ КАЛЬКУЛЯТОРА ===
   (async () => {
-    const result = await apiCall('/api/recipes');
-    if (result.ok && Array.isArray(result.data)) {
-      const select = document.getElementById('recipeSelect');
-      select.innerHTML = '<option value="">-- Выберите --</option>';
-      result.data.forEach(r => select.add(new Option(`${r.name} (выход ${r.yield}г)`, r.id)));
-    } else {
-      showToast('Ошибка загрузки рецептов', true);
-    }
+    await fetchRecipes(true);
+    const select = document.getElementById('recipeSelect');
+    select.innerHTML = '<option value="">-- Выберите --</option>';
+    cachedRecipes.forEach(r => select.add(new Option(`${r.name} (выход ${r.yield}г)`, r.id)));
   })();
 
+  // === КАЛЬКУЛЯТОР ===
   document.getElementById('calcBtn').onclick = async () => {
     const rid = document.getElementById('recipeSelect').value;
     const weight = parseFloat(document.getElementById('desiredWeight').value);
@@ -2085,6 +2259,27 @@ function renderCalculatorTab(container) {
       }
     };
   };
+
+  // === ЗАГРУЗКА И ОТОБРАЖЕНИЕ СПИСКА РЕЦЕПТОВ ===
+  async function loadRecipesList() {
+    await fetchRecipes(true);
+    const listDiv = document.getElementById('recipesList');
+    if (cachedRecipes.length === 0) {
+      listDiv.innerHTML = '<div class="card">Нет рецептов. Добавьте первый!</div>';
+      return;
+    }
+    let html = '<div class="card"><table style="width:100%;"><thead><tr><th>Название</th><th>Выход (г)</th><th>Описание</th></tr></thead><tbody>';
+    cachedRecipes.forEach(r => {
+      html += `<tr><td>${escapeHtml(r.name)}</td><td>${r.yield}</td><td>${escapeHtml(r.cost || '')}</td></tr>`;
+    });
+    html += '</tbody></table></div>';
+    listDiv.innerHTML = html;
+  }
+
+  loadRecipesList();
+
+  // === КНОПКА ДОБАВЛЕНИЯ РЕЦЕПТА ===
+  document.getElementById('addRecipeBtn').onclick = () => showAddRecipeModal(loadRecipesList);
 }
 
 // =========================== 7. СКЛАД ===========================
