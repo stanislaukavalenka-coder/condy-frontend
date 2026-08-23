@@ -993,299 +993,118 @@ function showAddRecipeModal(onSuccess) {
   document.getElementById('closeRecipeBtn').onclick = () => modal.remove();
 }
 
-function showEditRecipeModal(recipe, onSuccess) {
-    // Загружаем ингредиенты рецепта
-    (async () => {
-        let result;
-        try {
-            result = await apiCall('/api/recipes/calculate', {
-                method: 'POST',
-                body: JSON.stringify({ recipeId: recipe.id, desiredWeight: recipe.yield })
-            });
-        } catch (err) {
-            showToast('Ошибка загрузки состава рецепта', true);
-            return;
-        }
+function showRecipeDetails(recipe) {
+  // Загружаем базовый состав рецепта (на его выход)
+  (async () => {
+    showSpinner();
+    const result = await apiCall('/api/recipes/calculate', {
+      method: 'POST',
+      body: JSON.stringify({ recipeId: recipe.id, desiredWeight: recipe.yield })
+    });
+    hideSpinner();
 
-        let existingIngredients = [];
-        if (result.ok && result.data) {
-            existingIngredients = result.data.ingredients.map(ing => ({
-                name: ing.name,
-                amountG: ing.neededGrams
-            }));
-        }
+    if (!result.ok || result.data.error) {
+      showToast('Ошибка загрузки состава рецепта', true);
+      return;
+    }
 
-        // datalist
-        if (!document.getElementById('ingredientDatalist')) {
-            const dl = document.createElement('datalist');
-            dl.id = 'ingredientDatalist';
-            document.body.appendChild(dl);
-        }
-        async function updateDatalist() {
-            const stockResult = await apiCall('/api/stock');
-            if (stockResult.ok && Array.isArray(stockResult.data)) {
-                const dl = document.getElementById('ingredientDatalist');
-                dl.innerHTML = '';
-                stockResult.data.forEach(m => {
-                    const opt = document.createElement('option');
-                    opt.value = m.name;
-                    dl.appendChild(opt);
-                });
-            }
-        }
-        updateDatalist();
+    const baseData = result.data; // { coefficient: 1, ingredients: [{name, neededGrams}] }
+    const baseWeight = recipe.yield;
+    let currentWeight = baseWeight;
+    let currentIngredients = baseData.ingredients.map(ing => ({ ...ing }));
 
-        const modal = document.createElement('div');
-        modal.className = 'modal';
-        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    // Функция пересчёта на новый вес
+    function recalculate(newWeight) {
+      const coeff = newWeight / baseWeight;
+      currentIngredients = baseData.ingredients.map(ing => ({
+        name: ing.name,
+        neededGrams: ing.neededGrams * coeff
+      }));
+      currentWeight = newWeight;
+      renderModalContent();
+    }
 
-        modal.innerHTML = `
-            <div class="modal-content" style="max-width:600px;">
-                <h3>✏️ Редактирование рецепта</h3>
-                <label>Название рецепта</label>
-                <input id="editRecipeName" value="${escapeHtml(recipe.name)}">
+    // Рендерим содержимое модалки
+    function renderModalContent() {
+      const ingHtml = currentIngredients.map(ing =>
+        `<tr><td>${escapeHtml(ing.name)}</td><td style="text-align:right;">${Math.round(ing.neededGrams*10)/10} г</td></tr>`
+      ).join('');
 
-                <label>Выход (г)</label>
-                <input type="number" id="editRecipeYield" value="${recipe.yield}">
+      document.getElementById('recipeDetailIngredients').innerHTML = `
+        <table style="width:100%; border-collapse:collapse;">
+          <thead><tr><th>Ингредиент</th><th style="text-align:right;">Количество</th></tr></thead>
+          <tbody>${ingHtml}</tbody>
+        </table>
+      `;
+      document.getElementById('recipeDetailWeightDisplay').textContent = `${Math.round(currentWeight)} г`;
+    }
 
-                <label>Описание (пошагово, необязательно)</label>
-                <textarea id="editRecipeDescription" rows="3">${escapeHtml(recipe.cost || '')}</textarea>
+    // Создаём модалку
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
 
-                <h4>Ингредиенты</h4>
-                <div id="editRecipeIngredientsContainer"></div>
-                <button id="editAddIngredientRowBtn" class="add-row" style="margin-top:4px;">➕ Добавить ингредиент</button>
+    modal.innerHTML = `
+      <div class="modal-content" style="max-width:600px;">
+        <h2 style="margin-top:0;">${escapeHtml(recipe.name)}</h2>
+        <p><strong>Выход:</strong> ${recipe.yield} г</p>
+        <p><strong>Описание:</strong><br>${escapeHtml(recipe.cost || 'Нет описания')}</p>
+        <hr>
+        <h4>Ингредиенты</h4>
+        <div id="recipeDetailIngredients"></div>
 
-                <div style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end;">
-                    <button id="saveEditRecipeBtn" style="width:auto; padding:8px 24px;">Сохранить</button>
-                    <button id="closeEditRecipeBtn" class="secondary" style="width:auto; padding:8px 24px;">Отмена</button>
-                </div>
-                <div id="editRecipeResult"></div>
-            </div>
-        `;
-        document.body.appendChild(modal);
+        <div style="display:flex; gap:12px; align-items:center; margin-top:16px;">
+          <label style="font-weight:normal;">Желаемый вес (г):</label>
+          <input type="number" id="recipeDetailWeight" value="${baseWeight}" style="width:100px; padding:6px 10px;">
+          <button id="recipeDetailCalcBtn" style="width:auto; padding:6px 16px;">Рассчитать</button>
+          <span style="font-weight:bold;">→ <span id="recipeDetailWeightDisplay">${baseWeight} г</span></span>
+        </div>
 
-        const container = document.getElementById('editRecipeIngredientsContainer');
-        function addIngredientRow(name = '', amount = '') {
-            const div = document.createElement('div');
-            div.className = 'ingredient-row';
-            div.style.display = 'flex';
-            div.style.gap = '8px';
-            div.style.marginBottom = '6px';
-            div.innerHTML = `
-                <input type="text" class="ingredient-name" list="ingredientDatalist" placeholder="Название" value="${escapeHtml(name)}" style="flex:2;">
-                <input type="number" class="ingredient-amount" placeholder="Кол-во (г)" value="${amount}" style="flex:1;">
-                <button class="remove-ingredient" style="width:auto; margin:0; background:#ef4444; padding:2px 10px;">✖</button>
-            `;
-            container.appendChild(div);
-            div.querySelector('.remove-ingredient').onclick = () => div.remove();
-        }
+        <button id="recipeDetailWriteOffBtn" class="secondary" style="margin-top:12px;">📦 Списать ингредиенты</button>
 
-        // Заполняем существующими ингредиентами
-        if (existingIngredients.length) {
-            existingIngredients.forEach(ing => addIngredientRow(ing.name, ing.amountG));
-        } else {
-            // Добавляем 3 пустые строки
-            for (let i = 0; i < 3; i++) addIngredientRow();
-        }
+        <div style="margin-top:16px; display:flex; gap:10px; justify-content:flex-end;">
+          <button id="closeRecipeDetailBtn" class="secondary" style="width:auto; padding:8px 24px;">Закрыть</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
 
-        document.getElementById('editAddIngredientRowBtn').onclick = () => addIngredientRow();
+    // Рендерим ингредиенты первый раз
+    renderModalContent();
 
-        document.getElementById('saveEditRecipeBtn').onclick = async () => {
-            const name = document.getElementById('editRecipeName').value.trim();
-            const yieldG = parseFloat(document.getElementById('editRecipeYield').value);
-            const description = document.getElementById('editRecipeDescription').value.trim();
+    // Обработчик кнопки "Рассчитать"
+    document.getElementById('recipeDetailCalcBtn').onclick = () => {
+      const newWeight = parseFloat(document.getElementById('recipeDetailWeight').value);
+      if (isNaN(newWeight) || newWeight <= 0) {
+        showToast('Введите корректный вес', true);
+        return;
+      }
+      recalculate(newWeight);
+    };
 
-            if (!name || isNaN(yieldG) || yieldG <= 0) {
-                document.getElementById('editRecipeResult').innerHTML = '<div class="alert" style="color:red;">Введите название и выход</div>';
-                return;
-            }
+    // Обработчик "Списать"
+    document.getElementById('recipeDetailWriteOffBtn').onclick = async () => {
+      const items = currentIngredients.map(ing => ({
+        name: ing.name,
+        neededGrams: ing.neededGrams
+      }));
+      showSpinner();
+      const writeOffResult = await apiCall('/api/stock/writeoff', {
+        method: 'POST',
+        body: JSON.stringify({ items, comment: `Списание по рецепту "${recipe.name}"` })
+      });
+      hideSpinner();
+      if (writeOffResult.ok) {
+        showToast(writeOffResult.data.message || 'Списание выполнено');
+      } else {
+        showToast(writeOffResult.data.error || 'Ошибка списания', true);
+      }
+    };
 
-            const ingredients = [];
-            document.querySelectorAll('#editRecipeIngredientsContainer .ingredient-row').forEach(row => {
-                const ingName = row.querySelector('.ingredient-name').value.trim();
-                const amt = parseFloat(row.querySelector('.ingredient-amount').value);
-                if (ingName && !isNaN(amt) && amt > 0) {
-                    ingredients.push({ name: ingName, amountG: amt });
-                }
-            });
-
-            if (ingredients.length === 0) {
-                document.getElementById('editRecipeResult').innerHTML = '<div class="alert" style="color:red;">Добавьте хотя бы один ингредиент</div>';
-                return;
-            }
-
-            showSpinner();
-            const result = await apiCall(`/api/recipes/${recipe.id}`, {
-                method: 'PUT',
-                body: JSON.stringify({
-                    name,
-                    yield: yieldG,
-                    ingredients,
-                    cost: description
-                })
-            });
-            hideSpinner();
-
-            if (result.ok) {
-                showToast('Рецепт обновлён');
-                modal.remove();
-                sessionStorage.removeItem('cachedRecipes');
-                if (onSuccess) onSuccess();
-            } else {
-                document.getElementById('editRecipeResult').innerHTML = `<div class="alert" style="color:red;">${result.data.error || 'Ошибка обновления'}</div>`;
-            }
-        };
-
-        document.getElementById('closeEditRecipeBtn').onclick = () => modal.remove();
-    })();
+    // Закрытие
+    document.getElementById('closeRecipeDetailBtn').onclick = () => modal.remove();
+  })();
 }
-function showEditRecipeModal(recipe, onSuccess) {
-    // Загружаем ингредиенты рецепта
-    (async () => {
-        let result;
-        try {
-            result = await apiCall('/api/recipes/calculate', {
-                method: 'POST',
-                body: JSON.stringify({ recipeId: recipe.id, desiredWeight: recipe.yield })
-            });
-        } catch (err) {
-            showToast('Ошибка загрузки состава рецепта', true);
-            return;
-        }
-
-        let existingIngredients = [];
-        if (result.ok && result.data) {
-            existingIngredients = result.data.ingredients.map(ing => ({
-                name: ing.name,
-                amountG: ing.neededGrams
-            }));
-        }
-
-        // datalist
-        if (!document.getElementById('ingredientDatalist')) {
-            const dl = document.createElement('datalist');
-            dl.id = 'ingredientDatalist';
-            document.body.appendChild(dl);
-        }
-        async function updateDatalist() {
-            const stockResult = await apiCall('/api/stock');
-            if (stockResult.ok && Array.isArray(stockResult.data)) {
-                const dl = document.getElementById('ingredientDatalist');
-                dl.innerHTML = '';
-                stockResult.data.forEach(m => {
-                    const opt = document.createElement('option');
-                    opt.value = m.name;
-                    dl.appendChild(opt);
-                });
-            }
-        }
-        updateDatalist();
-
-        const modal = document.createElement('div');
-        modal.className = 'modal';
-        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-
-        modal.innerHTML = `
-            <div class="modal-content" style="max-width:600px;">
-                <h3>✏️ Редактирование рецепта</h3>
-                <label>Название рецепта</label>
-                <input id="editRecipeName" value="${escapeHtml(recipe.name)}">
-
-                <label>Выход (г)</label>
-                <input type="number" id="editRecipeYield" value="${recipe.yield}">
-
-                <label>Описание (пошагово, необязательно)</label>
-                <textarea id="editRecipeDescription" rows="3">${escapeHtml(recipe.cost || '')}</textarea>
-
-                <h4>Ингредиенты</h4>
-                <div id="editRecipeIngredientsContainer"></div>
-                <button id="editAddIngredientRowBtn" class="add-row" style="margin-top:4px;">➕ Добавить ингредиент</button>
-
-                <div style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end;">
-                    <button id="saveEditRecipeBtn" style="width:auto; padding:8px 24px;">Сохранить</button>
-                    <button id="closeEditRecipeBtn" class="secondary" style="width:auto; padding:8px 24px;">Отмена</button>
-                </div>
-                <div id="editRecipeResult"></div>
-            </div>
-        `;
-        document.body.appendChild(modal);
-
-        const container = document.getElementById('editRecipeIngredientsContainer');
-        function addIngredientRow(name = '', amount = '') {
-            const div = document.createElement('div');
-            div.className = 'ingredient-row';
-            div.style.display = 'flex';
-            div.style.gap = '8px';
-            div.style.marginBottom = '6px';
-            div.innerHTML = `
-                <input type="text" class="ingredient-name" list="ingredientDatalist" placeholder="Название" value="${escapeHtml(name)}" style="flex:2;">
-                <input type="number" class="ingredient-amount" placeholder="Кол-во (г)" value="${amount}" style="flex:1;">
-                <button class="remove-ingredient" style="width:auto; margin:0; background:#ef4444; padding:2px 10px;">✖</button>
-            `;
-            container.appendChild(div);
-            div.querySelector('.remove-ingredient').onclick = () => div.remove();
-        }
-
-        // Заполняем существующими ингредиентами
-        if (existingIngredients.length) {
-            existingIngredients.forEach(ing => addIngredientRow(ing.name, ing.amountG));
-        } else {
-            // Добавляем 3 пустые строки
-            for (let i = 0; i < 3; i++) addIngredientRow();
-        }
-
-        document.getElementById('editAddIngredientRowBtn').onclick = () => addIngredientRow();
-
-        document.getElementById('saveEditRecipeBtn').onclick = async () => {
-            const name = document.getElementById('editRecipeName').value.trim();
-            const yieldG = parseFloat(document.getElementById('editRecipeYield').value);
-            const description = document.getElementById('editRecipeDescription').value.trim();
-
-            if (!name || isNaN(yieldG) || yieldG <= 0) {
-                document.getElementById('editRecipeResult').innerHTML = '<div class="alert" style="color:red;">Введите название и выход</div>';
-                return;
-            }
-
-            const ingredients = [];
-            document.querySelectorAll('#editRecipeIngredientsContainer .ingredient-row').forEach(row => {
-                const ingName = row.querySelector('.ingredient-name').value.trim();
-                const amt = parseFloat(row.querySelector('.ingredient-amount').value);
-                if (ingName && !isNaN(amt) && amt > 0) {
-                    ingredients.push({ name: ingName, amountG: amt });
-                }
-            });
-
-            if (ingredients.length === 0) {
-                document.getElementById('editRecipeResult').innerHTML = '<div class="alert" style="color:red;">Добавьте хотя бы один ингредиент</div>';
-                return;
-            }
-
-            showSpinner();
-            const result = await apiCall(`/api/recipes/${recipe.id}`, {
-                method: 'PUT',
-                body: JSON.stringify({
-                    name,
-                    yield: yieldG,
-                    ingredients,
-                    cost: description
-                })
-            });
-            hideSpinner();
-
-            if (result.ok) {
-                showToast('Рецепт обновлён');
-                modal.remove();
-                sessionStorage.removeItem('cachedRecipes');
-                if (onSuccess) onSuccess();
-            } else {
-                document.getElementById('editRecipeResult').innerHTML = `<div class="alert" style="color:red;">${result.data.error || 'Ошибка обновления'}</div>`;
-            }
-        };
-
-        document.getElementById('closeEditRecipeBtn').onclick = () => modal.remove();
-    })();
-}
-  
 // =========================== 3. ОСНОВНОЕ ПРИЛОЖЕНИЕ ===========================
 function renderMainApp() {
   const appDiv = document.getElementById('app');
@@ -1310,7 +1129,7 @@ function showTab(tabId) {
   document.querySelectorAll('.nav-item').forEach(btn => btn.classList.toggle('active', btn.getAttribute('data-tab') === tabId));
   const container = document.getElementById('mainContent');
   if (tabId === 'orders') renderOrdersTab(container);
-  else if (tabId === 'recipes') (container);
+  else if (tabId === 'recipes') renderRecipesTab(container);
   else if (tabId === 'stock') renderStockTab(container);
   else if (tabId === 'analytics') renderAnalyticsTab(container);
   else if (tabId === 'more') renderMoreTab(container);
@@ -2495,6 +2314,7 @@ function renderRecipesTab(container) {
       <button id="addRecipeBtn" class="secondary" style="width:auto; padding:6px 16px;">➕ Добавить рецепт</button>
     </div>
 
+    <!-- Блок калькулятора -->
     <div class="card" style="margin-top:12px;">
       <h3 style="margin-top:0;">🧮 Калькулятор рецептов</h3>
       <label>📖 Рецепт</label>
@@ -2504,11 +2324,6 @@ function renderRecipesTab(container) {
       <button id="calcBtn" style="margin-top:6px;">Рассчитать</button>
       <div id="calcResult"></div>
       <button id="writeOffBtn" style="display:none; margin-top:6px;">Списать</button>
-    </div>
-
-    <!-- ПОИСК -->
-    <div style="margin: 12px 0;">
-      <input type="text" id="recipeSearchInput" placeholder="🔍 Поиск рецептов по названию или описанию..." style="width:100%; padding:8px 12px; border-radius:12px; border:1px solid #cbd5e1;">
     </div>
 
     <!-- Список рецептов -->
@@ -2525,26 +2340,54 @@ function renderRecipesTab(container) {
 
   // === КАЛЬКУЛЯТОР ===
   document.getElementById('calcBtn').onclick = async () => {
-    // ... (без изменений, как было)
+    const rid = document.getElementById('recipeSelect').value;
+    const weight = parseFloat(document.getElementById('desiredWeight').value);
+    if (!rid || !weight) {
+      showToast('Выберите рецепт и вес', true);
+      return;
+    }
+    showSpinner();
+    const result = await apiCall('/api/recipes/calculate', {
+      method: 'POST',
+      body: JSON.stringify({ recipeId: parseInt(rid), desiredWeight: weight })
+    });
+    hideSpinner();
+    if (!result.ok || result.data.error) {
+      document.getElementById('calcResult').innerHTML = `<div class="alert">${result.data.error || 'Ошибка расчёта'}</div>`;
+      return;
+    }
+    const data = result.data;
+    let html = `<div class="card"><div>📐 Коэффициент: ${data.coefficient.toFixed(3)}</div>
+      <table><thead><tr><th>Ингредиент</th><th>Нужно (г)</th></tr></thead><tbody>`;
+    data.ingredients.forEach(ing => html += `<tr><td>${escapeHtml(ing.name)}</td><td class="amount">${Math.round(ing.neededGrams*10)/10}</td></tr>`);
+    html += `</tbody></table></div>`;
+    document.getElementById('calcResult').innerHTML = html;
+    document.getElementById('writeOffBtn').style.display = 'block';
+    document.getElementById('writeOffBtn').onclick = async () => {
+      showSpinner();
+      const writeOffResult = await apiCall('/api/stock/writeoff', {
+        method: 'POST',
+        body: JSON.stringify({ items: data.ingredients, comment: "Списание через веб" })
+      });
+      hideSpinner();
+      if (writeOffResult.ok) {
+        showToast(writeOffResult.data.message || 'Списание выполнено');
+      } else {
+        showToast(writeOffResult.data.error || 'Ошибка списания', true);
+      }
+    };
   };
 
-  // === ФУНКЦИЯ ОТОБРАЖЕНИЯ СПИСКА (с фильтрацией) ===
-  function renderFilteredRecipes(searchText = '') {
+  // === ФУНКЦИЯ ЗАГРУЗКИ СПИСКА (КЛИКАБЕЛЬНЫЕ СТРОКИ) ===
+  async function loadRecipesList() {
+    await fetchRecipes(true);
     const listDiv = document.getElementById('recipesList');
-    let filtered = cachedRecipes;
-    if (searchText.trim()) {
-      const lower = searchText.trim().toLowerCase();
-      filtered = cachedRecipes.filter(r =>
-        r.name.toLowerCase().includes(lower) ||
-        (r.cost && r.cost.toLowerCase().includes(lower))
-      );
-    }
-    if (filtered.length === 0) {
-      listDiv.innerHTML = '<div class="card">Нет рецептов, соответствующих поиску</div>';
+    if (cachedRecipes.length === 0) {
+      listDiv.innerHTML = '<div class="card">Нет рецептов. Добавьте первый!</div>';
       return;
     }
     let html = '<div class="card"><table style="width:100%;"><thead><tr><th>Название</th><th>Выход (г)</th><th>Описание</th></tr></thead><tbody>';
-    filtered.forEach(r => {
+    cachedRecipes.forEach(r => {
       html += `<tr class="recipe-row" data-id="${r.id}" style="cursor:pointer; transition:background 0.2s;">
         <td>${escapeHtml(r.name)}</td>
         <td>${r.yield}</td>
@@ -2553,39 +2396,22 @@ function renderRecipesTab(container) {
     });
     html += '</tbody></table></div>';
     listDiv.innerHTML = html;
+
+    // Добавляем обработчики клика на строки
+    document.querySelectorAll('.recipe-row').forEach(row => {
+      row.addEventListener('click', function() {
+        console.log('🟢 Клик по строке, id:', this.dataset.id);
+        const recipeId = parseInt(this.dataset.id);
+        const recipe = cachedRecipes.find(r => r.id === recipeId);
+        console.log('🟢 Найден рецепт:', recipe);
+        if (recipe) showRecipeDetails(recipe);
+      });
+    });
   }
-
-  // === ЗАГРУЗКА СПИСКА (первая) ===
-  async function loadRecipesList() {
-    await fetchRecipes(true);
-    console.log('📦 Загружено рецептов:', cachedRecipes.length);
-    // Получаем текущий текст поиска
-    const searchInput = document.getElementById('recipeSearchInput');
-    const searchText = searchInput ? searchInput.value : '';
-    renderFilteredRecipes(searchText);
-  }
-
-  // === ОБРАБОТЧИК ПОИСКА ===
-  document.getElementById('recipeSearchInput').addEventListener('input', function() {
-    renderFilteredRecipes(this.value);
-  });
-
-  // === ДЕЛЕГИРОВАНИЕ КЛИКА ПО СТРОКАМ ===
-  document.getElementById('recipesList').addEventListener('click', function(e) {
-    const row = e.target.closest('.recipe-row');
-    if (!row) return;
-    const recipeId = parseInt(row.dataset.id);
-    const recipe = cachedRecipes.find(r => Number(r.id) === recipeId);
-    if (recipe) {
-      showRecipeDetails(recipe);
-    } else {
-      showToast('Рецепт не найден', true);
-    }
-  });
 
   loadRecipesList();
 
-  // === КНОПКА ДОБАВЛЕНИЯ ===
+  // === КНОПКА ДОБАВЛЕНИЯ РЕЦЕПТА ===
   document.getElementById('addRecipeBtn').onclick = () => showAddRecipeModal(loadRecipesList);
 }
 // =========================== 7. СКЛАД ===========================
