@@ -9,10 +9,10 @@
 <style>
 /* ========== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ========== */
 :root {
-  --primary: #f97316;
-  --primary-dark: #ea580c;
+  --primary: #ff8165;
+  --primary-dark: #ea350c;
   --primary-gradient: linear-gradient(135deg, #f97316, #f59e0b);
-  --secondary-gradient: linear-gradient(135deg, #f093fb, #f5576c);
+  --secondary-gradient: linear-gradient(135deg, #f093fb, #efb2ba);
   --card-shadow: 0 8px 30px rgba(0,0,0,0.08);
   --card-shadow-hover: 0 12px 40px rgba(0,0,0,0.12);
   --radius-card: 16px;
@@ -33,9 +33,16 @@ body {
 }
 
 /* ========== ШРИФТЫ ДЛЯ ЗАГОЛОВКОВ ========== */
-h1, h2, h3, h4, .heading-font {
+h1, h2, h4, .heading-font {
   font-family: var(--font-heading) !important;
   font-weight: 700;
+}
+
+h3 {
+  font-family: var(--font-heading) !important;
+  font-weight: 700;
+  margin-top: 2px;
+  margin-bottom: 2px;
 }
 
 /* ========== КОНТЕЙНЕРЫ ========== */
@@ -58,7 +65,8 @@ h1, h2, h3, h4, .heading-font {
   background: #ffffff;
   border-radius: var(--radius-card);
   padding: 16px;
-  margin-top: 12px;
+  padding-top: 0px;
+  margin-top: 0px;
   overflow-x: auto;
   box-shadow: var(--card-shadow);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -264,7 +272,7 @@ tr:hover {
   grid-template-columns: repeat(7, 1fr);
   gap: 4px;
   text-align: center;
-  margin: 8px 0;
+  margin: 6px 0;
 }
 .calendar-day {
   cursor: pointer;
@@ -280,17 +288,17 @@ tr:hover {
   justify-content: center;
 }
 .calendar-day.today {
-  background: var(--primary-gradient);
+  background: #e99bdc;
   color: white;
 }
 .calendar-day.selected {
-  background: #3b82f6;
+  background: #8eb8fb;
   color: white;
 }
 .calendar-sum {
   font-size: 0.65rem;
   font-weight: bold;
-  color: var(--primary);
+  color: rgb(178, 40, 199);
   margin-top: 2px;
   height: 18px;
   line-height: 18px;
@@ -884,7 +892,7 @@ function renderOrdersTab(container) {
     </div>
     <div id="calendarGrid" class="calendar-grid"></div>
     <div style="display:flex; justify-content:center; margin:12px 0;">
-      <button id="addOrderBtn" style="width:auto;background:#fb923c;font-weight:600;padding:10px 24px;border-radius:40px;border:none;color:white;cursor:pointer;box-shadow:0 4px 12px rgba(251,146,60,0.3);transition:all 0.2s;margin-top: 0px;">
+    <button id="addOrderBtn" style="width:auto;background:#fb923c;font-weight:600;padding:6px 24px;border-radius: 200px;border:none;color:white;cursor:pointer;box-shadow:0 4px 6px rgba(251,146,60,0.3);transition:all 0.2s;margin-top: 0px;">
         ➕ НОВЫЙ ЗАКАЗ
       </button>
     </div>
