@@ -2287,7 +2287,7 @@ if (nameInput && dropdown) {
 
   document.getElementById('closeModalBtn').onclick = () => document.getElementById('orderModal').remove();
 }
-// =========================== 6. РЕЦЕПТЫ ===========================
+// =========================== РЕЦЕПТЫ ===========================
 let cachedRecipes = [];
 
 async function fetchRecipes(force = false) {
@@ -2297,9 +2297,13 @@ async function fetchRecipes(force = false) {
   }
   const result = await apiCall('/api/recipes');
   if (result.ok && Array.isArray(result.data)) {
-    cachedRecipes = result.data;
+    // Приводим id к числу для надёжности
+    cachedRecipes = result.data.map(r => ({ ...r, id: Number(r.id) }));
     sessionStorage.setItem('cachedRecipes', JSON.stringify(cachedRecipes));
-  } else cachedRecipes = [];
+  } else {
+    cachedRecipes = [];
+    console.warn('❌ Не удалось загрузить рецепты:', result);
+  }
   return cachedRecipes;
 }
 
@@ -2374,7 +2378,7 @@ function renderRecipesTab(container) {
     };
   };
 
-  // === ЗАГРУЗКА И ОТОБРАЖЕНИЕ СПИСКА РЕЦЕПТОВ (КЛИКАБЕЛЬНЫЕ СТРОКИ) ===
+  // === ФУНКЦИЯ ЗАГРУЗКИ СПИСКА (КЛИКАБЕЛЬНЫЕ СТРОКИ) ===
   async function loadRecipesList() {
     await fetchRecipes(true);
     const listDiv = document.getElementById('recipesList');
@@ -2384,7 +2388,7 @@ function renderRecipesTab(container) {
     }
     let html = '<div class="card"><table style="width:100%;"><thead><tr><th>Название</th><th>Выход (г)</th><th>Описание</th></tr></thead><tbody>';
     cachedRecipes.forEach(r => {
-      html += `<tr class="recipe-row" data-id="${r.id}" style="cursor:pointer; transition:background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+      html += `<tr class="recipe-row" data-id="${r.id}" style="cursor:pointer; transition:background 0.2s;">
         <td>${escapeHtml(r.name)}</td>
         <td>${r.yield}</td>
         <td>${escapeHtml((r.cost || '').substring(0, 50))}${(r.cost && r.cost.length > 50) ? '…' : ''}</td>
@@ -2395,9 +2399,11 @@ function renderRecipesTab(container) {
 
     // Добавляем обработчики клика на строки
     document.querySelectorAll('.recipe-row').forEach(row => {
-      row.addEventListener('click', () => {
-        const recipeId = parseInt(row.dataset.id);
+      row.addEventListener('click', function() {
+        console.log('🟢 Клик по строке, id:', this.dataset.id);
+        const recipeId = parseInt(this.dataset.id);
         const recipe = cachedRecipes.find(r => r.id === recipeId);
+        console.log('🟢 Найден рецепт:', recipe);
         if (recipe) showRecipeDetails(recipe);
       });
     });
