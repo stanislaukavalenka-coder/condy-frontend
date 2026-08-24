@@ -1045,7 +1045,7 @@ function showRecipeDetails(recipe) {
     modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
 
     modal.innerHTML = `
-      <div class="modal-content" style="max-width:600px;">
+      <div class="modal-content" style="max-width:650px;">
         <h2 style="margin-top:0;">${escapeHtml(recipe.name)}</h2>
         <p><strong>Выход:</strong> ${recipe.yield} г</p>
         <p><strong>Описание:</strong><br>${escapeHtml(recipe.cost || 'Нет описания')}</p>
@@ -1053,7 +1053,7 @@ function showRecipeDetails(recipe) {
         <h4>Ингредиенты</h4>
         <div id="recipeDetailIngredients"></div>
 
-        <div style="display:flex; gap:12px; align-items:center; margin-top:16px;">
+        <div style="display:flex; gap:12px; align-items:center; margin-top:16px; flex-wrap:wrap;">
           <label style="font-weight:normal;">Желаемый вес (г):</label>
           <input type="number" id="recipeDetailWeight" value="${baseWeight}" style="width:100px; padding:6px 10px;">
           <button id="recipeDetailCalcBtn" style="width:auto; padding:6px 16px;">Рассчитать</button>
@@ -1062,7 +1062,10 @@ function showRecipeDetails(recipe) {
 
         <button id="recipeDetailWriteOffBtn" class="secondary" style="margin-top:12px;">📦 Списать ингредиенты</button>
 
-        <div style="margin-top:16px; display:flex; gap:10px; justify-content:flex-end;">
+        <!-- НОВЫЙ БЛОК: КНОПКИ РЕДАКТИРОВАНИЯ И УДАЛЕНИЯ -->
+        <div style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+          <button id="editRecipeBtn" style="width:auto; padding:8px 20px;">✏️ Редактировать</button>
+          <button id="deleteRecipeBtn" style="width:auto; padding:8px 20px; background:#ef4444;">🗑️ Удалить</button>
           <button id="closeRecipeDetailBtn" class="secondary" style="width:auto; padding:8px 24px;">Закрыть</button>
         </div>
       </div>
@@ -1099,6 +1102,42 @@ function showRecipeDetails(recipe) {
       } else {
         showToast(writeOffResult.data.error || 'Ошибка списания', true);
       }
+    };
+
+    // === НОВЫЕ ОБРАБОТЧИКИ ===
+
+    // Редактирование – открывает модалку редактирования
+    document.getElementById('editRecipeBtn').onclick = () => {
+      modal.remove();
+      // Предполагается, что функция showEditRecipeModal определена глобально
+      showEditRecipeModal(recipe, () => {
+        // После сохранения обновляем список и открываем обновлённый рецепт
+        fetchRecipes(true).then(() => {
+          const updatedRecipe = cachedRecipes.find(r => r.id === recipe.id);
+          if (updatedRecipe) showRecipeDetails(updatedRecipe);
+          // Обновляем список на вкладке
+          const container = document.getElementById('mainContent');
+          renderRecipesTab(container);
+        });
+      });
+    };
+
+    // Удаление
+    document.getElementById('deleteRecipeBtn').onclick = () => {
+      showConfirmModal(`Удалить рецепт "${recipe.name}"?`, async () => {
+        showSpinner();
+        const result = await apiCall(`/api/recipes/${recipe.id}`, { method: 'DELETE' });
+        hideSpinner();
+        if (result.ok) {
+          showToast('Рецепт удалён');
+          modal.remove();
+          // Обновляем список на вкладке
+          const container = document.getElementById('mainContent');
+          renderRecipesTab(container);
+        } else {
+          showToast(result.data.error || 'Ошибка удаления', true);
+        }
+      });
     };
 
     // Закрытие
@@ -2314,6 +2353,11 @@ function renderRecipesTab(container) {
       <button id="addRecipeBtn" class="secondary" style="width:auto; padding:6px 16px;">➕ Добавить рецепт</button>
     </div>
 
+    <!-- ПОЛЕ ПОИСКА -->
+    <div style="margin-top:12px;">
+      <input type="text" id="recipeSearchInput" placeholder="🔍 Поиск по названию или описанию..." style="width:100%; padding:8px 14px; border-radius:12px; border:1.5px solid #cbd5e1;">
+    </div>
+
     <!-- Блок калькулятора -->
     <div class="card" style="margin-top:12px;">
       <h3 style="margin-top:0;">🧮 Калькулятор рецептов</h3>
@@ -2378,16 +2422,25 @@ function renderRecipesTab(container) {
     };
   };
 
-  // === ФУНКЦИЯ ЗАГРУЗКИ СПИСКА (КЛИКАБЕЛЬНЫЕ СТРОКИ) ===
-  async function loadRecipesList() {
-    await fetchRecipes(true);
-    const listDiv = document.getElementById('recipesList');
-    if (cachedRecipes.length === 0) {
-      listDiv.innerHTML = '<div class="card">Нет рецептов. Добавьте первый!</div>';
+  // === ПОЛЕ ПОИСКА И ФУНКЦИЯ ФИЛЬТРАЦИИ ===
+  const searchInput = document.getElementById('recipeSearchInput');
+  const listDiv = document.getElementById('recipesList');
+
+  function renderFilteredRecipes() {
+    const searchText = searchInput.value.trim().toLowerCase();
+    let filtered = cachedRecipes;
+    if (searchText) {
+      filtered = cachedRecipes.filter(r =>
+        r.name.toLowerCase().includes(searchText) ||
+        (r.cost && r.cost.toLowerCase().includes(searchText))
+      );
+    }
+    if (filtered.length === 0) {
+      listDiv.innerHTML = '<div class="card">Рецепты не найдены</div>';
       return;
     }
     let html = '<div class="card"><table style="width:100%;"><thead><tr><th>Название</th><th>Выход (г)</th><th>Описание</th></tr></thead><tbody>';
-    cachedRecipes.forEach(r => {
+    filtered.forEach(r => {
       html += `<tr class="recipe-row" data-id="${r.id}" style="cursor:pointer; transition:background 0.2s;">
         <td>${escapeHtml(r.name)}</td>
         <td>${r.yield}</td>
@@ -2396,95 +2449,39 @@ function renderRecipesTab(container) {
     });
     html += '</tbody></table></div>';
     listDiv.innerHTML = html;
-
-    // Добавляем обработчики клика на строки
-    document.querySelectorAll('.recipe-row').forEach(row => {
-      row.addEventListener('click', function() {
-        console.log('🟢 Клик по строке, id:', this.dataset.id);
-        const recipeId = parseInt(this.dataset.id);
-        const recipe = cachedRecipes.find(r => r.id === recipeId);
-        console.log('🟢 Найден рецепт:', recipe);
-        if (recipe) showRecipeDetails(recipe);
-      });
-    });
   }
 
+  async function loadRecipesList() {
+    await fetchRecipes(true);
+    renderFilteredRecipes();
+    // Обновляем select для калькулятора
+    const select = document.getElementById('recipeSelect');
+    select.innerHTML = '<option value="">-- Выберите --</option>';
+    cachedRecipes.forEach(r => select.add(new Option(`${r.name} (выход ${r.yield}г)`, r.id)));
+  }
+
+  // === ОБРАБОТЧИК КЛИКА ПО СТРОКЕ (делегирование) ===
+  listDiv.addEventListener('click', function(e) {
+    const row = e.target.closest('.recipe-row');
+    if (!row) return;
+    const recipeId = parseInt(row.dataset.id);
+    const recipe = cachedRecipes.find(r => Number(r.id) === recipeId);
+    if (recipe) {
+      showRecipeDetails(recipe);
+    } else {
+      showToast('Рецепт не найден', true);
+    }
+  });
+
+  // === ОБРАБОТЧИК ВВОДА ДЛЯ ПОИСКА ===
+  searchInput.addEventListener('input', renderFilteredRecipes);
+
+  // === ЗАГРУЗКА СПИСКА ===
   loadRecipesList();
 
-  // === КНОПКА ДОБАВЛЕНИЯ РЕЦЕПТА ===
+  // === КНОПКА ДОБАВЛЕНИЯ ===
   document.getElementById('addRecipeBtn').onclick = () => showAddRecipeModal(loadRecipesList);
 }
-// =========================== 7. СКЛАД ===========================
-async function renderStockTab(container) {
-  container.innerHTML = `<h1>📊 Склад</h1><button id="refreshStockBtn" class="secondary">Обновить</button>
-    <div id="stockTable" style="margin-top:12px;"></div>
-    <div class="card"><h3>✏️ Одиночная операция</h3>
-    <label>Материал</label><select id="stockMaterial"></select>
-    <label>Операция</label><select id="stockOperation"><option>Приход</option><option>Расход</option></select>
-    <label>Количество</label><input type="number" id="stockQty" step="any">
-    <label>Комментарий</label><input type="text" id="stockComment">
-    <button id="stockExecute">Выполнить</button></div>`;
-
-  // Функция обновления таблицы склада
-  const refreshStockTable = async () => {
-    showSpinner();
-    const result = await apiCall('/api/stock');
-    hideSpinner();
-    if (!result.ok || !Array.isArray(result.data)) {
-      document.getElementById('stockTable').innerHTML = '<div class="alert">Ошибка загрузки склада</div>';
-      return;
-    }
-    const stock = result.data;
-    if (stock.length === 0) {
-      document.getElementById('stockTable').innerHTML = '<div class="card">Склад пуст</div>';
-      return;
-    }
-    let html = '<div class="card"><table style="width:100%; border-collapse: collapse;">';
-    html += '<thead><tr><th style="border:1px solid #ddd; padding:8px;">ID</th><th style="border:1px solid #ddd; padding:8px;">Материал</th><th style="border:1px solid #ddd; padding:8px;">Остаток</th></tr></thead><tbody>';
-    stock.forEach(s => {
-      html += `<tr>
-        <td style="border:1px solid #ddd; padding:8px;">${s.id}</td>
-        <td style="border:1px solid #ddd; padding:8px;">${escapeHtml(s.name)}</td>
-        <td style="border:1px solid #ddd; padding:8px; text-align:right;">${s.stock}</td>
-      </tr>`;
-    });
-    html += '</tbody></table></div>';
-    document.getElementById('stockTable').innerHTML = html;
-
-    // Обновить выпадающий список материалов
-    const sel = document.getElementById('stockMaterial');
-    sel.innerHTML = '<option value="">-- Выберите --</option>';
-    stock.forEach(m => sel.add(new Option(escapeHtml(m.name), m.name)));
-  };
-
-  await refreshStockTable(); // первая загрузка
-  document.getElementById('refreshStockBtn').onclick = refreshStockTable;
-
-  // Выполнение одиночной операции
-  document.getElementById('stockExecute').onclick = async () => {
-    const mat = document.getElementById('stockMaterial').value;
-    const op = document.getElementById('stockOperation').value;
-    const qty = parseFloat(document.getElementById('stockQty').value);
-    const comm = document.getElementById('stockComment').value;
-    if (!mat || isNaN(qty) || qty <= 0) {
-      showToast('Заполните поля: материал, количество >0', true);
-      return;
-    }
-    showSpinner();
-    const result = await apiCall('/api/stock/transaction', {
-      method: 'POST',
-      body: JSON.stringify({ materialName: mat, operation: op, quantity: qty, comment: comm })
-    });
-    hideSpinner();
-    if (result.ok) {
-      showToast(result.data.message || 'Операция выполнена');
-      refreshStockTable(); // обновить таблицу
-    } else {
-      showToast(result.data.error || 'Ошибка выполнения', true);
-    }
-  };
-}
-
 
 
 // =========================== 8. ДОХОДЫ/РАСХОДЫ ===========================
