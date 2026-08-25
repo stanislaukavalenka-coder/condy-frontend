@@ -2497,71 +2497,11 @@ function renderRecipesTab(container) {
       <input type="text" id="recipeSearchInput" placeholder="🔍 Поиск по названию или описанию..." style="width:100%; padding:8px 14px; border-radius:12px; border:1.5px solid #cbd5e1;">
     </div>
 
-    <!-- Блок калькулятора -->
-    <div class="card" style="margin-top:12px;">
-      <h3 style="margin-top:0;">🧮 Калькулятор рецептов</h3>
-      <label>📖 Рецепт</label>
-      <select id="recipeSelect"></select>
-      <label>⚖️ Желаемый вес (г)</label>
-      <input type="number" id="desiredWeight" value="500">
-      <button id="calcBtn" style="margin-top:6px;">Рассчитать</button>
-      <div id="calcResult"></div>
-      <button id="writeOffBtn" style="display:none; margin-top:6px;">Списать</button>
-    </div>
-
-    <!-- Список рецептов -->
+    <!-- СПИСОК РЕЦЕПТОВ -->
     <div id="recipesList" style="margin-top:12px;"></div>
   `;
 
-  // === ЗАГРУЗКА РЕЦЕПТОВ ДЛЯ КАЛЬКУЛЯТОРА ===
-  (async () => {
-    await fetchRecipes(true);
-    const select = document.getElementById('recipeSelect');
-    select.innerHTML = '<option value="">-- Выберите --</option>';
-    cachedRecipes.forEach(r => select.add(new Option(`${r.name} (выход ${r.yield}г)`, r.id)));
-  })();
-
-  // === КАЛЬКУЛЯТОР ===
-  document.getElementById('calcBtn').onclick = async () => {
-    const rid = document.getElementById('recipeSelect').value;
-    const weight = parseFloat(document.getElementById('desiredWeight').value);
-    if (!rid || !weight) {
-      showToast('Выберите рецепт и вес', true);
-      return;
-    }
-    showSpinner();
-    const result = await apiCall('/api/recipes/calculate', {
-      method: 'POST',
-      body: JSON.stringify({ recipeId: parseInt(rid), desiredWeight: weight })
-    });
-    hideSpinner();
-    if (!result.ok || result.data.error) {
-      document.getElementById('calcResult').innerHTML = `<div class="alert">${result.data.error || 'Ошибка расчёта'}</div>`;
-      return;
-    }
-    const data = result.data;
-    let html = `<div class="card"><div>📐 Коэффициент: ${data.coefficient.toFixed(3)}</div>
-      <table><thead><tr><th>Ингредиент</th><th>Нужно (г)</th></tr></thead><tbody>`;
-    data.ingredients.forEach(ing => html += `<tr><td>${escapeHtml(ing.name)}</td><td class="amount">${Math.round(ing.neededGrams*10)/10}</td></tr>`);
-    html += `</tbody></table></div>`;
-    document.getElementById('calcResult').innerHTML = html;
-    document.getElementById('writeOffBtn').style.display = 'block';
-    document.getElementById('writeOffBtn').onclick = async () => {
-      showSpinner();
-      const writeOffResult = await apiCall('/api/stock/writeoff', {
-        method: 'POST',
-        body: JSON.stringify({ items: data.ingredients, comment: "Списание через веб" })
-      });
-      hideSpinner();
-      if (writeOffResult.ok) {
-        showToast(writeOffResult.data.message || 'Списание выполнено');
-      } else {
-        showToast(writeOffResult.data.error || 'Ошибка списания', true);
-      }
-    };
-  };
-
-  // === ПОЛЕ ПОИСКА И ФУНКЦИЯ ФИЛЬТРАЦИИ ===
+  // === ПОИСК И ФИЛЬТРАЦИЯ ===
   const searchInput = document.getElementById('recipeSearchInput');
   const listDiv = document.getElementById('recipesList');
 
@@ -2593,10 +2533,6 @@ function renderRecipesTab(container) {
   async function loadRecipesList() {
     await fetchRecipes(true);
     renderFilteredRecipes();
-    // Обновляем select для калькулятора
-    const select = document.getElementById('recipeSelect');
-    select.innerHTML = '<option value="">-- Выберите --</option>';
-    cachedRecipes.forEach(r => select.add(new Option(`${r.name} (выход ${r.yield}г)`, r.id)));
   }
 
   // === ОБРАБОТЧИК КЛИКА ПО СТРОКЕ (делегирование) ===
@@ -2621,7 +2557,6 @@ function renderRecipesTab(container) {
   // === КНОПКА ДОБАВЛЕНИЯ ===
   document.getElementById('addRecipeBtn').onclick = () => showAddRecipeModal(loadRecipesList);
 }
-
 
 // =========================== 8. ДОХОДЫ/РАСХОДЫ ===========================
 
