@@ -2631,7 +2631,96 @@ function formatDate(dateStr) {
   return d.toLocaleDateString();
 }
 
+// =========================== СКЛАД ===========================
+async function renderStockTab(container) {
+  container.innerHTML = `
+    <h1>📊 Склад</h1>
+    <button id="refreshStockBtn" class="secondary" style="width:auto;">Обновить</button>
+    <div id="stockTable" style="margin-top:12px;"></div>
+    <div class="card" style="margin-top:16px;">
+      <h3>✏️ Одиночная операция</h3>
+      <label>Материал</label>
+      <select id="stockMaterial">
+        <option value="">-- Выберите --</option>
+      </select>
+      <label>Операция</label>
+      <select id="stockOperation">
+        <option>Приход</option>
+        <option>Расход</option>
+      </select>
+      <label>Количество</label>
+      <input type="number" id="stockQty" step="any" min="0.01">
+      <label>Комментарий</label>
+      <input type="text" id="stockComment" placeholder="Необязательно">
+      <button id="stockExecute" style="margin-top:6px;">Выполнить</button>
+    </div>
+  `;
 
+  // Функция обновления таблицы склада
+  const refreshStockTable = async () => {
+    showSpinner();
+    const result = await apiCall('/api/stock');
+    hideSpinner();
+    if (!result.ok || !Array.isArray(result.data)) {
+      document.getElementById('stockTable').innerHTML = '<div class="alert">Ошибка загрузки склада</div>';
+      return;
+    }
+    const stock = result.data;
+    if (stock.length === 0) {
+      document.getElementById('stockTable').innerHTML = '<div class="card">Склад пуст</div>';
+      return;
+    }
+    let html = '<div class="card"><table style="width:100%; border-collapse: collapse;">';
+    html += '<thead><tr><th style="text-align:left;">ID</th><th style="text-align:left;">Материал</th><th style="text-align:right;">Остаток</th></tr></thead><tbody>';
+    stock.forEach(s => {
+      html += `<tr>
+        <td>${s.id}</td>
+        <td>${escapeHtml(s.name)}</td>
+        <td style="text-align:right;">${s.stock}</td>
+      </tr>`;
+    });
+    html += '</tbody></table></div>';
+    document.getElementById('stockTable').innerHTML = html;
+
+    // Обновить выпадающий список материалов
+    const sel = document.getElementById('stockMaterial');
+    sel.innerHTML = '<option value="">-- Выберите --</option>';
+    stock.forEach(m => sel.add(new Option(escapeHtml(m.name), m.name)));
+  };
+
+  // Первая загрузка
+  await refreshStockTable();
+
+  // Кнопка обновления
+  document.getElementById('refreshStockBtn').onclick = refreshStockTable;
+
+  // Выполнение одиночной операции
+  document.getElementById('stockExecute').onclick = async () => {
+    const mat = document.getElementById('stockMaterial').value;
+    const op = document.getElementById('stockOperation').value;
+    const qty = parseFloat(document.getElementById('stockQty').value);
+    const comm = document.getElementById('stockComment').value.trim();
+
+    if (!mat || isNaN(qty) || qty <= 0) {
+      showToast('Заполните материал и количество (больше 0)', true);
+      return;
+    }
+
+    showSpinner();
+    const result = await apiCall('/api/stock/transaction', {
+      method: 'POST',
+      body: JSON.stringify({ materialName: mat, operation: op, quantity: qty, comment: comm })
+    });
+    hideSpinner();
+
+    if (result.ok) {
+      showToast(result.data.message || 'Операция выполнена');
+      refreshStockTable();
+    } else {
+      showToast(result.data.error || 'Ошибка выполнения', true);
+    }
+  };
+}
   
 // =========================== АНАЛИТИКА (с кликабельными финансами) ===========================
 function renderAnalyticsTab(container) {
