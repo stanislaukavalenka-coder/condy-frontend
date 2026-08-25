@@ -1840,117 +1840,84 @@ if (priceInput) {
     };
   });
 
-  // Сохранение изменений (клиент, заказ, товары)
-  document.getElementById('saveOrderEditBtn').onclick = async () => {
-    let newClientName = document.getElementById('editClientName').value.trim();
-    let newClientPhone = document.getElementById('editClientPhone').value.trim();
-    let newClientAddress = document.getElementById('editClientAddress').value.trim();
-    const newDetails = document.getElementById('editDetails').value;
-    const newDelivery = document.getElementById('editDelivery').value;
-    const newDate = document.getElementById('editExecutionDate').value;
-    const newStatus = currentStatus;
+// Сохранение изменений (клиент, заказ, товары)
+document.getElementById('saveOrderEditBtn').onclick = async () => {
+  let newClientName = document.getElementById('editClientName').value.trim();
+  let newClientPhone = document.getElementById('editClientPhone').value.trim();
+  let newClientAddress = document.getElementById('editClientAddress').value.trim();
+  const newDetails = document.getElementById('editDetails').value;
+  const newDelivery = document.getElementById('editDelivery').value;
+  const newDate = document.getElementById('editExecutionDate').value;
+  const newStatus = currentStatus;
 
-    const totalDisplay = document.getElementById('editOrderPriceDisplay');
-    const newPrice = normalizePrice(totalDisplay ? totalDisplay.textContent : '0');
+  const totalDisplay = document.getElementById('editOrderPriceDisplay');
+  const newPrice = normalizePrice(totalDisplay ? totalDisplay.textContent : '0');
 
-    if (isNaN(newPrice) || newPrice <= 0) {
-      showToast('Некорректная сумма заказа', true);
-      return;
-    }
-    if (!newDate) {
-      showToast('Укажите дату выполнения', true);
-      return;
-    }
+  if (isNaN(newPrice) || newPrice <= 0) {
+    showToast('Некорректная сумма заказа', true);
+    return;
+  }
+  if (!newDate) {
+    showToast('Укажите дату выполнения', true);
+    return;
+  }
 
-    showSpinner();
+  showSpinner();
 
-    try {
-      // 1. Обновить клиента (найти или создать)
-      let clientId = null;
-      if (!cachedClients.length) await fetchClients();
-      const findPhone = (phone) => {
-        const norm = phone.replace(/[^0-9+]/g, '');
-        return cachedClients.find(c => c.phone && c.phone.replace(/[^0-9+]/g, '') === norm);
-      };
-      const existingClient = findPhone(newClientPhone);
-      if (existingClient) {
-        clientId = existingClient.id;
-        if (existingClient.name !== newClientName || existingClient.address !== newClientAddress) {
-          await apiCall(`/api/clients/${existingClient.id}`, {
-            method: 'PUT',
-            body: JSON.stringify({ name: newClientName, phone: newClientPhone, address: newClientAddress })
-          });
-        }
-      } else {
-        const createRes = await apiCall('/api/clients', {
-          method: 'POST',
+  try {
+    // 1. Обновить клиента (найти или создать)
+    let clientId = null;
+    if (!cachedClients.length) await fetchClients();
+    const findPhone = (phone) => {
+      const norm = phone.replace(/[^0-9+]/g, '');
+      return cachedClients.find(c => c.phone && c.phone.replace(/[^0-9+]/g, '') === norm);
+    };
+    const existingClient = findPhone(newClientPhone);
+    if (existingClient) {
+      clientId = existingClient.id;
+      if (existingClient.name !== newClientName || existingClient.address !== newClientAddress) {
+        await apiCall(`/api/clients/${existingClient.id}`, {
+          method: 'PUT',
           body: JSON.stringify({ name: newClientName, phone: newClientPhone, address: newClientAddress })
         });
-        if (!createRes.ok) throw new Error(createRes.data.error || 'Ошибка создания клиента');
-        clientId = createRes.data.id;
       }
-
-      // 2. Обновить заказ (основные поля)
-      const updateOrderRes = await apiCall(`/api/orders/${order.id}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          clientId: clientId,
-          price: newPrice,
-          details: newDetails,
-          delivery: newDelivery,
-          executionDate: newDate,
-          status: newStatus
-        })
+    } else {
+      const createRes = await apiCall('/api/clients', {
+        method: 'POST',
+        body: JSON.stringify({ name: newClientName, phone: newClientPhone, address: newClientAddress })
       });
-      if (!updateOrderRes.ok) throw new Error(updateOrderRes.data.error || 'Ошибка обновления заказа');
-
-      // 3. Обновить товары заказа: удалить старые связи, добавить новые
-      await apiCall(`/api/order-products/${order.id}`, { method: 'DELETE' });
-      if (!deleteRes.ok) {
-    throw new Error('Не удалось удалить старые товары из заказа');
-}
-      for (const prod of orderProducts) {
-        let finalProductId = prod.productId;
-        let finalPrice = prod.price;
-        if (!finalProductId && prod.customName) {
-          const newProdRes = await apiCall('/api/products', {
-            method: 'POST',
-            body: JSON.stringify({
-              categoryId: 1,
-              name: prod.customName,
-              price: prod.price,
-              description: 'Создан автоматически из заказа'
-            })
-          });
-          if (newProdRes.ok) {
-            finalProductId = newProdRes.data.id;
-            await fetchProducts(true);
-          } else {
-            console.warn('Не удалось создать товар', prod.customName);
-            continue;
-          }
-        }
-        if (finalProductId) {
-          await apiCall('/api/order-products', {
-            method: 'POST',
-            body: JSON.stringify({ orderId: order.id, productId: finalProductId, quantity: prod.quantity, price: finalPrice })
-          });
-        }
-      }
-
-      showToast('Заказ обновлён');
-      document.getElementById('editOrderModal').remove();
-      sessionStorage.removeItem('cachedOrders');
-      sessionStorage.removeItem('cachedClients');
-      cachedOrders = [];
-      cachedClients = [];
-      renderCalendar();
-    } catch (err) {
-      showToast(err.message, true);
-    } finally {
-      hideSpinner();
+      if (!createRes.ok) throw new Error(createRes.data.error || 'Ошибка создания клиента');
+      clientId = createRes.data.id;
     }
-  };
+
+    // 2. Обновить заказ (основные поля + товары)
+    const updateOrderRes = await apiCall(`/api/orders/${order.id}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        clientId: clientId,
+        price: newPrice,
+        details: newDetails,
+        delivery: newDelivery,
+        executionDate: newDate,
+        status: newStatus,
+        orderProducts: orderProducts   // ← ПЕРЕДАЁМ ТОВАРЫ (сервер сам обновит)
+      })
+    });
+    if (!updateOrderRes.ok) throw new Error(updateOrderRes.data.error || 'Ошибка обновления заказа');
+
+    showToast('Заказ обновлён');
+    document.getElementById('editOrderModal').remove();
+    sessionStorage.removeItem('cachedOrders');
+    sessionStorage.removeItem('cachedClients');
+    cachedOrders = [];
+    cachedClients = [];
+    renderCalendar();
+  } catch (err) {
+    showToast(err.message, true);
+  } finally {
+    hideSpinner();
+  }
+};
 
   // Удаление заказа
   document.getElementById('deleteOrderBtn').onclick = async () => {
