@@ -992,7 +992,146 @@ function showAddRecipeModal(onSuccess) {
 
   document.getElementById('closeRecipeBtn').onclick = () => modal.remove();
 }
+function showEditRecipeModal(recipe, onSuccess) {
+    // Загружаем состав рецепта, чтобы показать текущие ингредиенты
+    (async () => {
+        const result = await apiCall('/api/recipes/calculate', {
+            method: 'POST',
+            body: JSON.stringify({ recipeId: recipe.id, desiredWeight: recipe.yield })
+        });
+        let existingIngredients = [];
+        if (result.ok && result.data) {
+            existingIngredients = result.data.ingredients.map(ing => ({
+                name: ing.name,
+                amountG: ing.neededGrams
+            }));
+        }
 
+        // Создаём datalist если нет
+        if (!document.getElementById('ingredientDatalist')) {
+            const dl = document.createElement('datalist');
+            dl.id = 'ingredientDatalist';
+            document.body.appendChild(dl);
+        }
+        async function updateDatalist() {
+            const stockResult = await apiCall('/api/stock');
+            if (stockResult.ok && Array.isArray(stockResult.data)) {
+                const dl = document.getElementById('ingredientDatalist');
+                dl.innerHTML = '';
+                stockResult.data.forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m.name;
+                    dl.appendChild(opt);
+                });
+            }
+        }
+        updateDatalist();
+
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width:600px;">
+                <h3>✏️ Редактирование рецепта</h3>
+                <label>Название рецепта</label>
+                <input id="editRecipeName" value="${escapeHtml(recipe.name)}">
+
+                <label>Выход (г)</label>
+                <input type="number" id="editRecipeYield" value="${recipe.yield}">
+
+                <label>Описание (пошагово, необязательно)</label>
+                <textarea id="editRecipeDescription" rows="3">${escapeHtml(recipe.cost || '')}</textarea>
+
+                <h4>Ингредиенты</h4>
+                <div id="editRecipeIngredientsContainer"></div>
+                <button id="editAddIngredientRowBtn" class="add-row" style="margin-top:4px;">➕ Добавить ингредиент</button>
+
+                <div style="margin-top:12px; display:flex; gap:10px; justify-content:flex-end;">
+                    <button id="saveEditRecipeBtn" style="width:auto; padding:8px 24px;">Сохранить</button>
+                    <button id="closeEditRecipeBtn" class="secondary" style="width:auto; padding:8px 24px;">Отмена</button>
+                </div>
+                <div id="editRecipeResult"></div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        const container = document.getElementById('editRecipeIngredientsContainer');
+        function addIngredientRow(name = '', amount = '') {
+            const div = document.createElement('div');
+            div.className = 'ingredient-row';
+            div.style.display = 'flex';
+            div.style.gap = '8px';
+            div.style.marginBottom = '6px';
+            div.innerHTML = `
+                <input type="text" class="ingredient-name" list="ingredientDatalist" placeholder="Название" value="${escapeHtml(name)}" style="flex:2;">
+                <input type="number" class="ingredient-amount" placeholder="Кол-во (г)" value="${amount}" style="flex:1;">
+                <button class="remove-ingredient" style="width:auto; margin:0; background:#ef4444; padding:2px 10px;">✖</button>
+            `;
+            container.appendChild(div);
+            div.querySelector('.remove-ingredient').onclick = () => div.remove();
+        }
+
+        // Заполняем существующие ингредиенты
+        if (existingIngredients.length) {
+            existingIngredients.forEach(ing => addIngredientRow(ing.name, ing.amountG));
+        } else {
+            // Добавляем 3 пустые строки
+            for (let i = 0; i < 3; i++) addIngredientRow();
+        }
+
+        document.getElementById('editAddIngredientRowBtn').onclick = () => addIngredientRow();
+
+        document.getElementById('saveEditRecipeBtn').onclick = async () => {
+            const name = document.getElementById('editRecipeName').value.trim();
+            const yieldG = parseFloat(document.getElementById('editRecipeYield').value);
+            const description = document.getElementById('editRecipeDescription').value.trim();
+
+            if (!name || isNaN(yieldG) || yieldG <= 0) {
+                document.getElementById('editRecipeResult').innerHTML = '<div class="alert" style="color:red;">Введите название и выход</div>';
+                return;
+            }
+
+            const ingredients = [];
+            document.querySelectorAll('#editRecipeIngredientsContainer .ingredient-row').forEach(row => {
+                const ingName = row.querySelector('.ingredient-name').value.trim();
+                const amt = parseFloat(row.querySelector('.ingredient-amount').value);
+                if (ingName && !isNaN(amt) && amt > 0) {
+                    ingredients.push({ name: ingName, amountG: amt });
+                }
+            });
+
+            if (ingredients.length === 0) {
+                document.getElementById('editRecipeResult').innerHTML = '<div class="alert" style="color:red;">Добавьте хотя бы один ингредиент</div>';
+                return;
+            }
+
+            showSpinner();
+            const result = await apiCall(`/api/recipes/${recipe.id}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    name,
+                    yield: yieldG,
+                    ingredients,
+                    cost: description
+                })
+            });
+            hideSpinner();
+
+            if (result.ok) {
+                showToast('Рецепт обновлён');
+                modal.remove();
+                sessionStorage.removeItem('cachedRecipes');
+                if (onSuccess) onSuccess();
+            } else {
+                document.getElementById('editRecipeResult').innerHTML = `<div class="alert" style="color:red;">${result.data.error || 'Ошибка обновления'}</div>`;
+            }
+        };
+
+        document.getElementById('closeEditRecipeBtn').onclick = () => modal.remove();
+    })();
+}
+  
 function showRecipeDetails(recipe) {
   // Загружаем базовый состав рецепта (на его выход)
   (async () => {
