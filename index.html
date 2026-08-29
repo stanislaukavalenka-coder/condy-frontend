@@ -1501,6 +1501,29 @@ async function loadOrdersForDate(dateStr) {
 
 async function showOrderDetailsModal(order, client) {
   console.log('showOrderDetailsModal вызвана', order, client);
+  
+  // Если клиент не передан или не найден в кэше, принудительно загружаем
+  if (!client || !client.id) {
+    // Если нет клиентов в кэше, загружаем
+    if (!cachedClients.length) {
+      await fetchClients(true);
+    }
+    // Ищем клиента по ID из заказа
+    if (order.clientId) {
+      client = cachedClients.find(c => Number(c.id) === Number(order.clientId));
+      if (!client) {
+        // Если всё равно не найден, пробуем перезагрузить принудительно
+        await fetchClients(true);
+        client = cachedClients.find(c => Number(c.id) === Number(order.clientId));
+      }
+    }
+    // Если клиент всё ещё undefined, создаём заглушку
+    if (!client) {
+      client = { id: order.clientId, name: 'Неизвестный', phone: '', address: '' };
+    }
+  }
+  // ========================================================
+  
   let currentStatus = order.status;
 
   // Данные товаров заказа (загрузим позже)
@@ -3875,7 +3898,7 @@ async function showAddUserForm(callback) {
 // ========== ИНИЦИАЛИЗАЦИЯ ПРИ ЗАГРУЗКЕ СТРАНИЦЫ ==========
 
   // ========== ГЛОБАЛЬНЫЙ ОБРАБОТЧИК КЛИКОВ ПО ЗАКАЗАМ ==========
-document.addEventListener('click', function(e) {
+document.addEventListener('click', async function(e) {
   const card = e.target.closest('.order-card-clickable');
   if (!card) return;
   e.preventDefault();
@@ -3889,10 +3912,22 @@ document.addEventListener('click', function(e) {
     return;
   }
 
-  // Строим актуальную карту клиентов (на случай, если cachedClients обновились)
-  const clientMap = {};
-  (cachedClients || []).forEach(c => clientMap[c.id] = c);
-  const client = clientMap[order.clientId];
+  // Если клиенты ещё не загружены, загружаем их
+  if (!cachedClients.length) {
+    await fetchClients(true);
+  }
+  // Ищем клиента по ID заказа
+  let client = cachedClients.find(c => Number(c.id) === Number(order.clientId));
+  // Если не найден, пробуем перезагрузить
+  if (!client) {
+    await fetchClients(true);
+    client = cachedClients.find(c => Number(c.id) === Number(order.clientId));
+  }
+  // Если всё равно нет, создаём заглушку
+  if (!client) {
+    client = { id: order.clientId, name: 'Неизвестный', phone: '', address: '' };
+  }
+
   showOrderDetailsModal(order, client);
 });
   
